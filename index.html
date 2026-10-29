@@ -1,4 +1,4 @@
-<title>Rilievo Misure</title>
+<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#F5F6F7"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Rilievo Misure"><meta name="apple-mobile-web-app-status-bar-style" content="default"><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="icon" href="icon-192.png"></head><body><title>Rilievo Misure</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -332,8 +332,165 @@ function fotoIn(v) {
 }
 async function dbAll(s) { var a = memMode ? Array.from(mem[s].values()) : await tx(s, 'readonly', function (o) { return o.getAll(); }); return s === 'foto' ? a.map(fotoIn) : a; }
 async function dbGet(s, id) { var v = memMode ? mem[s].get(id) : await tx(s, 'readonly', function (o) { return o.get(id); }); return s === 'foto' ? fotoIn(v) : v; }
-async function dbPut(s, v) { if (s === 'foto') v = await fotoOut(v); if (memMode) { mem[s].set(v.id, v); return; } return tx(s, 'readwrite', function (o) { return o.put(v); }); }
-function dbDel(s, id) { if (memMode) { mem[s].delete(id); return Promise.resolve(); } return tx(s, 'readwrite', function (o) { return o.delete(id); }); }
+async function dbPut(s, v) {
+  var ts = Date.now(); if (s === 'foto') v = await fotoOut(v); if (v && typeof v === 'object') v._ts = ts;
+  if (memMode) mem[s].set(v.id, v); else await tx(s, 'readwrite', function (o) { return o.put(v); });
+  if (!sbSkip(s, v.id)) syncSoon();
+}
+async function dbDel(s, id) {
+  if (memMode) mem[s].delete(id); else await tx(s, 'readwrite', function (o) { return o.delete(id); });
+  if (!sbSkip(s, id)) { var t = sbTomb(); t[s + '|' + id] = Date.now(); sbTombSave(t); syncSoon(); }
+}
+
+/* ---------- Sincronizzazione online (Supabase): stessi dati su telefono e computer ---------- */
+var SB = { url: 'https://hscotybcbtvvignhyyzb.supabase.co', key: 'sb_publishable_hud_y8DUmgxrHt5ohdP-ug_1zokOiNr' };
+var SYNC_STORES = ['clienti', 'rilievi', 'foto', 'listini', 'pdf', 'preventivi', 'impostazioni'];
+var syncSt = { busy: false, ts: 0, err: '', again: false }, syncTm = null;
+function sbSess() { try { var j = JSON.parse(lsGet('rm_sb', '')); return j && j.at ? j : null; } catch (e) { return null; } }
+function sbSave(j) { lsSet('rm_sb', j ? JSON.stringify(j) : ''); }
+function sbTomb() { try { return JSON.parse(lsGet('rm_tomb', '{}')) || {}; } catch (e) { return {}; } }
+function sbTombSave(t) { lsSet('rm_tomb', JSON.stringify(t)); }
+function sbSkip(s, id) { return s === 'impostazioni' && id === 'backup'; }
+function sbAb2b64(buf) {
+  var u = new Uint8Array(buf), s = '';
+  for (var i = 0; i < u.length; i += 8192) s += String.fromCharCode.apply(null, u.subarray(i, i + 8192));
+  return btoa(s);
+}
+function sbB642ab(b) { var s = atob(b), u = new Uint8Array(s.length); for (var i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u.buffer; }
+function sbEnc(v) { var o = {}; Object.keys(v).forEach(function (k) { var x = v[k]; o[k] = x instanceof ArrayBuffer ? { $ab: sbAb2b64(x) } : x; }); return o; }
+function sbDec(o) { var v = {}; Object.keys(o).forEach(function (k) { var x = o[k]; v[k] = x && typeof x === 'object' && x.$ab !== undefined ? sbB642ab(x.$ab) : x; }); return v; }
+function rawAll(s) { return memMode ? Promise.resolve(Array.from(mem[s].values())) : tx(s, 'readonly', function (o) { return o.getAll(); }); }
+function rawPut(s, v) { if (memMode) { mem[s].set(v.id, v); return Promise.resolve(); } return tx(s, 'readwrite', function (o) { return o.put(v); }); }
+function rawDel(s, id) { if (memMode) { mem[s].delete(id); return Promise.resolve(); } return tx(s, 'readwrite', function (o) { return o.delete(id); }); }
+async function sbToken() {
+  var j = sbSess(); if (!j) return null;
+  if (j.exp - 60000 > Date.now()) return j.at;
+  var r = await fetch(SB.url + '/auth/v1/token?grant_type=refresh_token', { method: 'POST', headers: { apikey: SB.key, 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: j.rt }) });
+  if (!r.ok) { if (r.status >= 400 && r.status < 500) { sbSave(null); } throw new Error('sessione'); }
+  var d = await r.json(); j.at = d.access_token; j.rt = d.refresh_token || j.rt; j.exp = Date.now() + (d.expires_in || 3600) * 1000; sbSave(j); return j.at;
+}
+async function sbReq(path, opt) {
+  opt = opt || {}; var tk = await sbToken(); if (!tk) throw new Error('sessione');
+  var h = { apikey: SB.key, Authorization: 'Bearer ' + tk }; if (opt.json) h['Content-Type'] = 'application/json'; if (opt.prefer) h.Prefer = opt.prefer;
+  var r = await fetch(SB.url + '/rest/v1/' + path, { method: opt.method || 'GET', headers: h, body: opt.body });
+  if (!r.ok) { var t = ''; try { t = await r.text(); } catch (e) {} throw new Error('server ' + r.status + ' ' + t.slice(0, 120)); }
+  return opt.noBody ? null : r.json();
+}
+async function sbAuth(signup, email, pw) {
+  var r = await fetch(SB.url + '/auth/v1/' + (signup ? 'signup' : 'token?grant_type=password'), { method: 'POST', headers: { apikey: SB.key, 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email, password: pw }) });
+  var d = {}; try { d = await r.json(); } catch (e) {}
+  if (!r.ok) {
+    var m = String(d.msg || d.error_description || d.message || '').toLowerCase();
+    if (m.indexOf('invalid login') >= 0) throw new Error('Email o password non corrette.');
+    if (m.indexOf('already') >= 0) throw new Error('Questa email ha già un account: premi Accedi.');
+    if (m.indexOf('password') >= 0 && m.indexOf('6') >= 0) throw new Error('La password deve avere almeno 6 caratteri.');
+    if (m.indexOf('confirm') >= 0) throw new Error('Devi prima confermare l’email: controlla la posta.');
+    throw new Error('Non riesco ad accedere' + (m ? ': ' + m.slice(0, 80) : '.'));
+  }
+  if (!d.access_token) throw new Error('Account creato. Controlla la posta per confermare l’email, poi premi Accedi.');
+  sbSave({ at: d.access_token, rt: d.refresh_token, exp: Date.now() + (d.expires_in || 3600) * 1000, uid: d.user && d.user.id, email: email });
+}
+function syncSoon(ms) { if (!sbSess()) return; clearTimeout(syncTm); syncTm = setTimeout(function () { syncNow(); }, ms || 2500); }
+function syncOpenIds() { var o = {}; if (S.ril && S.view === 'rilievo') o[S.ril.id] = 1; if (S.prev && S.view === 'preventivo') o[S.prev.id] = 1; return o; }
+async function syncNow(manual) {
+  var j = sbSess(); if (!j) return;
+  if (syncSt.busy) { syncSt.again = true; return; }
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) { syncSt.err = 'Senza connessione: riprovo appena torna internet.'; syncUi(); return; }
+  syncSt.busy = true; syncSt.err = ''; syncUi();
+  var changed = false;
+  try {
+    var rem = {}, off = 0;
+    for (;;) {
+      var pg = await sbReq('dati?select=archivio,id,aggiornato,eliminato&order=archivio,id&limit=1000&offset=' + off);
+      pg.forEach(function (x) { rem[x.archivio + '|' + x.id] = { ts: Date.parse(x.aggiornato) || 0, del: !!x.eliminato }; });
+      if (pg.length < 1000) break; off += 1000;
+    }
+    var tomb = sbTomb(), push = [], pull = [], locKeys = {}, open = syncOpenIds();
+    for (var si = 0; si < SYNC_STORES.length; si++) {
+      var s = SYNC_STORES[si], all = await rawAll(s);
+      for (var li = 0; li < all.length; li++) {
+        var v = all[li]; if (!v || sbSkip(s, v.id)) continue;
+        var key = s + '|' + v.id; locKeys[key] = 1; var r = rem[key], ts = v._ts || 0;
+        if (tomb[key] && tomb[key] > ts) continue;
+        if (!r || (ts > r.ts)) { if (!ts) { ts = Date.now(); v._ts = ts; await rawPut(s, v); } push.push({ s: s, v: v, ts: ts }); }
+        else if (r.ts > ts && !open[v.id]) pull.push({ s: s, id: v.id, del: r.del, ts: r.ts });
+      }
+    }
+    Object.keys(rem).forEach(function (key) {
+      if (locKeys[key]) return;
+      var a = key.split('|'), s2 = a[0], id = a.slice(1).join('|'), r2 = rem[key], tm = tomb[key];
+      if (tm && tm > r2.ts) { if (!r2.del) push.push({ s: s2, id: id, del: true, ts: tm }); }
+      else if (!r2.del && !open[id]) pull.push({ s: s2, id: id, del: false, ts: r2.ts });
+    });
+    /* invio */
+    var batch = [], size = 0;
+    async function flush() {
+      if (!batch.length) return;
+      await sbReq('dati?on_conflict=utente,archivio,id', { method: 'POST', json: 1, prefer: 'resolution=merge-duplicates,return=minimal', body: JSON.stringify(batch), noBody: true });
+      batch = []; size = 0;
+    }
+    for (var pi = 0; pi < push.length; pi++) {
+      var it = push[pi], row;
+      if (it.del) row = { utente: j.uid, archivio: it.s, id: it.id, contenuto: {}, aggiornato: new Date(it.ts).toISOString(), eliminato: true };
+      else row = { utente: j.uid, archivio: it.s, id: it.v.id, contenuto: sbEnc(it.v), aggiornato: new Date(it.ts).toISOString(), eliminato: false };
+      var sz = JSON.stringify(row).length;
+      if (batch.length && size + sz > 1500000) await flush();
+      batch.push(row); size += sz;
+      if (sz > 1500000) await flush();
+    }
+    await flush();
+    var t2 = sbTomb(); push.forEach(function (it) { if (it.del) delete t2[it.s + '|' + it.id]; }); sbTombSave(t2);
+    /* ricezione */
+    var toFetch = pull.filter(function (x) { return !x.del; });
+    pull.filter(function (x) { return x.del; }).forEach(function (x) { toFetch.push(x); });
+    for (var fi = 0; fi < pull.length; fi++) {
+      var p = pull[fi];
+      if (p.del) { await rawDel(p.s, p.id); changed = true; continue; }
+      var res = await sbReq('dati?select=contenuto&archivio=eq.' + encodeURIComponent(p.s) + '&id=eq.' + encodeURIComponent(p.id));
+      if (res && res[0]) { var nv = sbDec(res[0].contenuto); nv._ts = p.ts; await rawPut(p.s, nv); changed = true; }
+    }
+    syncSt.ts = Date.now();
+  } catch (e) {
+    syncSt.err = e && e.message === 'sessione' ? 'Accesso scaduto: accedi di nuovo.' : (navigator.onLine === false ? 'Senza connessione.' : 'Sincronizzazione non riuscita: ' + (e && e.message ? e.message : 'errore') + '.');
+  }
+  syncSt.busy = false;
+  if (changed) { try { await loadAll(); } catch (e2) {} syncRefresh(); }
+  syncUi();
+  if (manual === true && !syncSt.err) toast('Sincronizzazione completata.');
+  if (syncSt.again) { syncSt.again = false; syncSoon(500); }
+}
+function syncRefresh() {
+  if (S.view === 'rilievo' || S.view === 'preventivo') return;
+  if (S.cliente && !clienteDi(S.cliente.id)) { S.cliente = null; if (S.view === 'cliente') S.view = 'clienti'; }
+  try { render(); } catch (e) {}
+}
+function syncUi() { var b = $('#sync-st'); if (b) b.innerHTML = syncHtml(); }
+function syncHtml() {
+  var j = sbSess();
+  if (!j) return '<p class="muted" style="margin:0 0 10px;font-size:14px">Accedi per avere gli stessi dati su telefono e computer. I dati si salvano online, nel tuo account.</p><div class="btnrow" style="margin-top:0"><button class="btn pri" data-act="sbopen">Accedi o crea account</button></div>';
+  var st = syncSt.busy ? 'Sincronizzo…' : syncSt.err ? esc(syncSt.err) : (syncSt.ts ? 'Aggiornato alle ' + new Date(syncSt.ts).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : 'In attesa del primo aggiornamento…');
+  return '<p style="margin:0 0 4px;font-size:14px"><strong>Sincronizzazione attiva</strong> · ' + esc(j.email || '') + '</p><p class="muted" style="margin:0 0 10px;font-size:13px">' + st + '</p>' +
+    '<div class="btnrow" style="margin-top:0"><button class="btn" data-act="sbnow">Sincronizza ora</button><button class="btn" data-act="sbout">Esci</button></div>';
+}
+function sheetSync() {
+  openSheet('<h2 class="sh">Accesso</h2><p class="muted" style="margin:0 0 8px;font-size:14px">Con lo stesso account, telefono e computer mostrano gli stessi dati. La prima volta premi “Crea account”.</p>' +
+    '<label class="lb" for="sb-e">Email</label><input id="sb-e" class="in" type="email" autocomplete="username" inputmode="email">' +
+    '<label class="lb" for="sb-p">Password (almeno 6 caratteri)</label><input id="sb-p" class="in" type="password" autocomplete="current-password">' +
+    '<p id="sb-m" class="muted" style="margin:8px 0 0;font-size:14px;color:#B3261E"></p>' +
+    '<div class="btnrow"><button class="btn pri" id="sb-in">Accedi</button><button class="btn" id="sb-up">Crea account</button></div>' +
+    '<div class="btnrow" style="margin-top:0"><button class="btn" data-x="close">Annulla</button></div>', function (sh) {
+    async function go(signup) {
+      var e = $('#sb-e', sh).value.trim(), p = $('#sb-p', sh).value, m = $('#sb-m', sh);
+      if (!e || !p) { m.textContent = 'Scrivi email e password.'; return; }
+      m.textContent = ''; $('#sb-in', sh).disabled = $('#sb-up', sh).disabled = true;
+      try { await sbAuth(signup, e, p); closeSheet(true); toast('Accesso fatto. Sincronizzo…'); if (S.view === 'home') viewHome(); await syncNow(true); }
+      catch (err) { m.textContent = err.message || 'Errore.'; $('#sb-in', sh).disabled = $('#sb-up', sh).disabled = false; }
+    }
+    $('#sb-in', sh).addEventListener('click', function () { go(false); });
+    $('#sb-up', sh).addEventListener('click', function () { go(true); });
+  });
+}
+
 
 /* ---------- Stato ---------- */
 var S = {
@@ -1960,8 +2117,8 @@ function viewHome() {
     tile('codici', 'Codici', plural(S.cod.codici.length, 'codice', 'codici') + ' · ' + plural(S.cod.cartelle.length, 'cartella', 'cartelle')) +
     tile('preventivi', 'Preventivi', plural(S.preventivi.length, 'preventivo', 'preventivi')) +
     '</div>' +
-    '<div class="note-box"><strong>Dove sono i dati.</strong> Clienti, foto, listini e preventivi restano in questo browser, su questo dispositivo. ' +
-    'Telefono e tablet hanno archivi separati. Fai un backup ogni tanto: se i dati vengono cancellati (dal browser o dal telefono), il backup è l\'unico modo per recuperarli.' +
+    '<div class="note-box" style="margin-bottom:12px"><strong>Telefono e computer.</strong><div id="sync-st" style="margin-top:8px">' + syncHtml() + '</div></div>' +
+    '<div class="note-box"><strong>Dove sono i dati.</strong> Clienti, foto, listini e preventivi restano in questo browser, su questo dispositivo' + (sbSess() ? ' e, con l\'accesso, anche online nel tuo account. ' : '. Senza accesso, telefono e tablet hanno archivi separati. ') + 'Fai un backup ogni tanto: se i dati vengono cancellati (dal browser o dal telefono), il backup è l\'unico modo per recuperarli.' +
     '<p class="muted" style="font-size:13px;margin:8px 0 0">' + (S.backupTs ? 'Ultimo backup: ' + fmtDate(S.backupTs) + '. ' : 'Nessun backup fatto. ') + '</p>' +
     '<div class="btnrow"><button class="btn" data-act="backup">Salva backup</button>' +
     '<label class="btn" style="cursor:pointer">Ripristina backup<input id="restore" type="file" accept=".json,application/json" hidden></label></div></div>' +
@@ -3102,6 +3259,9 @@ app.addEventListener('click', async function (e) {
       }
       break;
     case 'backup': await backup(); break;
+    case 'sbopen': sheetSync(); break;
+    case 'sbnow': await syncNow(true); break;
+    case 'sbout': sbSave(null); syncSt.ts = 0; syncSt.err = ''; toast('Uscito. I dati restano su questo dispositivo.'); if (S.view === 'home') viewHome(); break;
     case 'export': await exportScheda(); break;
     case 'zin': if (view) zoomAt(view.W / 2, view.H / 2, Z.z * 1.5); break;
     case 'zout': if (view) zoomAt(view.W / 2, view.H / 2, Z.z / 1.5); break;
@@ -3156,6 +3316,11 @@ window.addEventListener('resize', function () { if (S.view === 'rilievo') fit();
   try { if (navigator.storage && navigator.storage.persist) S.persist = await navigator.storage.persist(); } catch (e) {}
   try { await loadAll(); } catch (e) { memMode = true; S.clienti = []; S.rilievi = []; }
   render();
+  if (sbSess()) syncNow();
+  setInterval(function () { if (sbSess() && !document.hidden) syncNow(); }, 45000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && sbSess()) syncNow(); });
+  window.addEventListener('online', function () { if (sbSess()) syncNow(); });
 })();
 })();
 </script>
+<script>if("serviceWorker" in navigator&&(location.protocol==="https:"||location.hostname==="localhost"||location.hostname==="127.0.0.1")){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){});});}</script></body></html>
