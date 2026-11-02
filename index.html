@@ -390,7 +390,43 @@ async function sbAuth(signup, email, pw) {
   if (!d.access_token) throw new Error('Account creato. Controlla la posta per confermare l’email, poi premi Accedi.');
   sbSave({ at: d.access_token, rt: d.refresh_token, exp: Date.now() + (d.expires_in || 3600) * 1000, uid: d.user && d.user.id, email: email });
 }
-function syncSoon(ms) { if (!sbSess()) return; clearTimeout(syncTm); syncTm = setTimeout(function () { syncNow(); }, ms || 2500); }
+async function sbMax() { var r = await sbReq('dati?select=aggiornato&order=aggiornato.desc&limit=1'); return r && r[0] ? r[0].aggiornato : ''; }
+/* Realtime di Supabase: il server avvisa subito quando una riga cambia */
+var rt = { ws: null, ok: false, hb: null, tm: null, ref: 0, t0: 0, last: 0 };
+async function rtStart() {
+  if (rt.ws || !sbSess() || typeof WebSocket === 'undefined') return;
+  var tk; try { tk = await sbToken(); } catch (e) { return; } if (!tk) return;
+  var ws;
+  try { ws = new WebSocket(SB.url.replace('https://', 'wss://') + '/realtime/v1/websocket?apikey=' + encodeURIComponent(SB.key) + '&vsn=1.0.0'); } catch (e) { return; }
+  rt.ws = ws; rt.ok = false; rt.t0 = Date.now();
+  function send(o) { try { ws.send(JSON.stringify(o)); } catch (e) {} }
+  ws.onopen = function () {
+    send({ topic: 'realtime:rm-dati', event: 'phx_join', ref: '1', join_ref: '1', payload: { config: { broadcast: { self: false }, presence: { key: '' }, postgres_changes: [{ event: '*', schema: 'public', table: 'dati' }] }, access_token: tk } });
+    clearInterval(rt.hb); rt.hb = setInterval(function () {
+      send({ topic: 'phoenix', event: 'heartbeat', payload: {}, ref: String(++rt.ref + 1) });
+      if (Date.now() - rt.t0 > 50 * 60 * 1000) { try { ws.close(); } catch (e) {} } /* il permesso scade dopo un'ora: riconnetto prima */
+    }, 25000);
+  };
+  ws.onmessage = function (m) {
+    var d; try { d = JSON.parse(m.data); } catch (e) { return; }
+    if (d.event === 'phx_reply' && d.topic === 'realtime:rm-dati') { rt.ok = d.payload && d.payload.status === 'ok'; if (rt.ok) syncSoon(200); }
+    else if (d.event === 'postgres_changes') { rt.last = Date.now(); syncSoon(200); }
+  };
+  ws.onclose = function () {
+    clearInterval(rt.hb); rt.ws = null; rt.ok = false;
+    clearTimeout(rt.tm); if (sbSess()) rt.tm = setTimeout(rtStart, 4000);
+  };
+  ws.onerror = function () { try { ws.close(); } catch (e) {} };
+}
+function rtStop() { clearTimeout(rt.tm); clearInterval(rt.hb); var w = rt.ws; rt.ws = null; rt.ok = false; if (w) { w.onclose = null; try { w.close(); } catch (e) {} } }
+/* controllo leggero ogni pochi secondi: se online è cambiato qualcosa, scarico subito */
+async function syncPoll() {
+  if (!sbSess() || syncSt.busy || document.hidden) return;
+  if (rt.ok && Date.now() - (syncSt.pollTs || 0) < 20000) return; /* con il realtime attivo il controllo è solo una rete di sicurezza */
+  syncSt.pollTs = Date.now();
+  try { var m = await sbMax(); if (m !== syncSt.mx) syncNow(); } catch (e) {}
+}
+function syncSoon(ms) { if (!sbSess()) return; clearTimeout(syncTm); syncTm = setTimeout(function () { syncNow(); }, ms || 1000); }
 function syncOpenIds() { var o = {}; if (S.ril && S.view === 'rilievo') o[S.ril.id] = 1; if (S.prev && S.view === 'preventivo') o[S.prev.id] = 1; return o; }
 async function syncNow(manual) {
   var j = sbSess(); if (!j) return;
@@ -450,6 +486,7 @@ async function syncNow(manual) {
       if (res && res[0]) { var nv = sbDec(res[0].contenuto); nv._ts = p.ts; await rawPut(p.s, nv); changed = true; }
     }
     syncSt.ts = Date.now();
+    try { syncSt.mx = await sbMax(); } catch (e3) {}
   } catch (e) {
     syncSt.err = e && e.message === 'sessione' ? 'Accesso scaduto: accedi di nuovo.' : (navigator.onLine === false ? 'Senza connessione.' : 'Sincronizzazione non riuscita: ' + (e && e.message ? e.message : 'errore') + '.');
   }
@@ -483,7 +520,7 @@ function sheetSync() {
       var e = $('#sb-e', sh).value.trim(), p = $('#sb-p', sh).value, m = $('#sb-m', sh);
       if (!e || !p) { m.textContent = 'Scrivi email e password.'; return; }
       m.textContent = ''; $('#sb-in', sh).disabled = $('#sb-up', sh).disabled = true;
-      try { await sbAuth(signup, e, p); closeSheet(true); toast('Accesso fatto. Sincronizzo…'); if (S.view === 'home') viewHome(); await syncNow(true); }
+      try { await sbAuth(signup, e, p); rtStart(); closeSheet(true); toast('Accesso fatto. Sincronizzo…'); if (S.view === 'home') viewHome(); await syncNow(true); }
       catch (err) { m.textContent = err.message || 'Errore.'; $('#sb-in', sh).disabled = $('#sb-up', sh).disabled = false; }
     }
     $('#sb-in', sh).addEventListener('click', function () { go(false); });
@@ -3261,7 +3298,7 @@ app.addEventListener('click', async function (e) {
     case 'backup': await backup(); break;
     case 'sbopen': sheetSync(); break;
     case 'sbnow': await syncNow(true); break;
-    case 'sbout': sbSave(null); syncSt.ts = 0; syncSt.err = ''; toast('Uscito. I dati restano su questo dispositivo.'); if (S.view === 'home') viewHome(); break;
+    case 'sbout': sbSave(null); rtStop(); syncSt.ts = 0; syncSt.err = ''; toast('Uscito. I dati restano su questo dispositivo.'); if (S.view === 'home') viewHome(); break;
     case 'export': await exportScheda(); break;
     case 'zin': if (view) zoomAt(view.W / 2, view.H / 2, Z.z * 1.5); break;
     case 'zout': if (view) zoomAt(view.W / 2, view.H / 2, Z.z / 1.5); break;
@@ -3316,9 +3353,10 @@ window.addEventListener('resize', function () { if (S.view === 'rilievo') fit();
   try { if (navigator.storage && navigator.storage.persist) S.persist = await navigator.storage.persist(); } catch (e) {}
   try { await loadAll(); } catch (e) { memMode = true; S.clienti = []; S.rilievi = []; }
   render();
-  if (sbSess()) syncNow();
-  setInterval(function () { if (sbSess() && !document.hidden) syncNow(); }, 45000);
-  document.addEventListener('visibilitychange', function () { if (!document.hidden && sbSess()) syncNow(); });
+  if (sbSess()) { syncNow(); rtStart(); }
+  setInterval(function () { if (sbSess() && !document.hidden) syncNow(); }, 60000);
+  setInterval(syncPoll, 4000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && sbSess()) { syncNow(); if (!rt.ws) rtStart(); } });
   window.addEventListener('online', function () { if (sbSess()) syncNow(); });
 })();
 })();
