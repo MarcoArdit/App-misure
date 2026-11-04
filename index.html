@@ -486,6 +486,14 @@ async function syncNow(manual) {
       if (res && res[0]) { var nv = sbDec(res[0].contenuto); nv._ts = p.ts; await rawPut(p.s, nv); changed = true; }
     }
     syncSt.ts = Date.now();
+    /* riepilogo per capire se i due elenchi coincidono */
+    var remN = {}, locN = {};
+    push.forEach(function (it) { if (!it.del) rem[it.s + '|' + (it.v ? it.v.id : it.id)] = { del: false }; else rem[it.s + '|' + it.id] = { del: true }; });
+    pull.forEach(function (it) { rem[it.s + '|' + it.id] = { del: it.del }; });
+    Object.keys(rem).forEach(function (k) { if (!rem[k].del) { var a2 = k.split('|')[0]; remN[a2] = (remN[a2] || 0) + 1; } });
+    for (var ci = 0; ci < SYNC_STORES.length; ci++) { var al = await rawAll(SYNC_STORES[ci]); al = al.filter(function (v) { return v && !sbSkip(SYNC_STORES[ci], v.id); }); if (al.length) locN[SYNC_STORES[ci]] = al.length; }
+    var sm = function (o) { return Object.keys(o).sort().map(function (k) { return k + ' ' + o[k]; }).join(', ') || 'niente'; };
+    syncSt.info = 'Online: ' + sm(remN) + '. Qui: ' + sm(locN) + '.';
     try { syncSt.mx = await sbMax(); } catch (e3) {}
   } catch (e) {
     syncSt.err = e && e.message === 'sessione' ? 'Accesso scaduto: accedi di nuovo.' : (navigator.onLine === false ? 'Senza connessione.' : 'Sincronizzazione non riuscita: ' + (e && e.message ? e.message : 'errore') + '.');
@@ -506,6 +514,7 @@ function syncHtml() {
   var j = sbSess();
   if (!j) return '<p class="muted" style="margin:0 0 10px;font-size:14px">Accedi per avere gli stessi dati su telefono e computer. I dati si salvano online, nel tuo account.</p><div class="btnrow" style="margin-top:0"><button class="btn pri" data-act="sbopen">Accedi o crea account</button></div>';
   var st = syncSt.busy ? 'Sincronizzo…' : syncSt.err ? esc(syncSt.err) : (syncSt.ts ? 'Aggiornato alle ' + new Date(syncSt.ts).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : 'In attesa del primo aggiornamento…');
+  if (syncSt.info && !syncSt.busy && !syncSt.err) st += '<br><span style="font-size:12px">' + esc(syncSt.info) + '</span>';
   return '<p style="margin:0 0 4px;font-size:14px"><strong>Sincronizzazione attiva</strong> · ' + esc(j.email || '') + '</p><p class="muted" style="margin:0 0 10px;font-size:13px">' + st + '</p>' +
     '<div class="btnrow" style="margin-top:0"><button class="btn" data-act="sbnow">Sincronizza ora</button><button class="btn" data-act="sbout">Esci</button></div>';
 }
