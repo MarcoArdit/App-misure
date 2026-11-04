@@ -1,6 +1,6 @@
 /* Rilievo Misure: tiene l'app (e i lettori PDF già scaricati) per usarla anche senza internet.
    Cambia VERSION ogni volta che aggiorni index.html. */
-var VERSION = 'v33';
+var VERSION = 'v35';
 var CORE = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png', 'favicon.ico', 'favicon-32.png', 'favicon-48.png'];
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open('app-' + VERSION).then(function (c) { return c.addAll(CORE); }).then(function () { return self.skipWaiting(); }));
@@ -15,12 +15,10 @@ self.addEventListener('fetch', function (e) {
   if (req.method !== 'GET') return;
   var url = new URL(req.url);
   if (url.origin === location.origin) {
-    /* l'app: prima la copia salvata, e intanto controllo se c'è una versione nuova */
+    /* l'app: prima la versione online (così gli aggiornamenti arrivano subito); senza internet uso la copia salvata */
     e.respondWith(caches.open('app-' + VERSION).then(function (c) {
-      return c.match(req, { ignoreSearch: true }).then(function (hit) {
-        var net = fetch(req).then(function (r) { if (r && r.ok) c.put(req, r.clone()); return r; }).catch(function () { return hit; });
-        return hit || net;
-      });
+      return fetch(req, { cache: 'no-cache' }).then(function (r) { if (r && r.ok) c.put(req, r.clone()); return r; })
+        .catch(function () { return c.match(req, { ignoreSearch: true }); });
     }));
   } else {
     /* lettore PDF, librerie e font: li scarico una volta e poi restano */
