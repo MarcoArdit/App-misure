@@ -343,7 +343,7 @@ async function dbDel(s, id) {
 }
 
 /* ---------- Sincronizzazione online (Supabase): stessi dati su telefono e computer ---------- */
-var APP_VER = 'v35';
+var APP_VER = 'v36';
 var SB = { url: 'https://hscotybcbtvvignhyyzb.supabase.co', key: 'sb_publishable_hud_y8DUmgxrHt5ohdP-ug_1zokOiNr' };
 var SYNC_STORES = ['clienti', 'rilievi', 'foto', 'listini', 'pdf', 'preventivi', 'impostazioni'];
 var syncSt = { busy: false, ts: 0, err: '', again: false }, syncTm = null;
@@ -366,14 +366,14 @@ function rawDel(s, id) { if (memMode) { mem[s].delete(id); return Promise.resolv
 async function sbToken() {
   var j = sbSess(); if (!j) return null;
   if (j.exp - 60000 > Date.now()) return j.at;
-  var r = await fetch(SB.url + '/auth/v1/token?grant_type=refresh_token', { method: 'POST', headers: { apikey: SB.key, 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: j.rt }) });
+  var r = await fetch(SB.url + '/auth/v1/token?grant_type=refresh_token', { method: 'POST', headers: { apikey: SB.key, 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: j.rt }), cache: 'no-store' });
   if (!r.ok) { if (r.status >= 400 && r.status < 500) { sbSave(null); } throw new Error('sessione'); }
   var d = await r.json(); j.at = d.access_token; j.rt = d.refresh_token || j.rt; j.exp = Date.now() + (d.expires_in || 3600) * 1000; sbSave(j); return j.at;
 }
 async function sbReq(path, opt) {
   opt = opt || {}; var tk = await sbToken(); if (!tk) throw new Error('sessione');
   var h = { apikey: SB.key, Authorization: 'Bearer ' + tk }; if (opt.json) h['Content-Type'] = 'application/json'; if (opt.prefer) h.Prefer = opt.prefer;
-  var r = await fetch(SB.url + '/rest/v1/' + path, { method: opt.method || 'GET', headers: h, body: opt.body });
+  var r = await fetch(SB.url + '/rest/v1/' + path, { method: opt.method || 'GET', headers: h, body: opt.body, cache: 'no-store' }); /* niente copie vecchie salvate dal browser */
   if (!r.ok) { var t = ''; try { t = await r.text(); } catch (e) {} throw new Error('server ' + r.status + ' ' + t.slice(0, 120)); }
   return opt.noBody ? null : r.json();
 }
