@@ -156,6 +156,13 @@ main.wrap{position:relative;z-index:1}
 .pgrid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .pgrid2 label{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:4px;min-width:0}
 .pgrid2 .in{min-height:44px;padding:0 8px;width:100%}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 4px}.chip{border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:999px;padding:7px 13px;font:inherit;font-size:14px}.chip.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.optsum{cursor:pointer;font-weight:600;font-size:15px;padding:2px 0}.optcard>summary{list-style:none}.optcard>summary::-webkit-details-marker{display:none}.optcard>summary::after{content:'▾';float:right;color:var(--muted)}.optcard[open]>summary::after{content:'▴'}
+.catrow{display:grid;grid-template-columns:minmax(0,1fr) 54px;gap:8px;margin-top:14px}.catgo{border:0;border-radius:8px;background:#2f9e56;color:#fff;display:flex;align-items:center;justify-content:center}.catgo svg{width:26px;height:26px}
+.cfgbox{margin-top:16px;border:1px solid var(--line);border-radius:8px;padding:12px 14px;background:color-mix(in srgb,var(--surface) 90%,transparent)}.cfgl{display:flex;justify-content:space-between;gap:12px;font-size:14px;padding:3px 0}.cfgl.tot{border-top:1px solid var(--line);margin-top:6px;padding-top:9px;font-weight:600;font-size:16px}.cfgerr{margin:0;color:#B3261E;font-size:14px}
+.tag{font-size:11px;font-weight:500;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:1px 6px;margin-left:6px}
+.tbscroll{overflow:auto;border:1px solid var(--line);border-radius:8px;background:color-mix(in srgb,var(--surface) 90%,transparent)}.cattb{border-collapse:collapse;width:max-content}.cattb th,.cattb td{padding:3px;border:1px solid var(--line)}.cc{width:74px;min-height:42px;padding:6px 8px;border:0;background:transparent;font-size:15px;text-align:right}.cc.h{font-weight:600;background:color-mix(in srgb,var(--ink) 5%,transparent)}
+.optcard{border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:10px;background:color-mix(in srgb,var(--surface) 90%,transparent)}.optrow{display:grid;grid-template-columns:1fr 130px;gap:8px}.vrow{display:grid;grid-template-columns:minmax(0,1fr) 84px 74px 36px;gap:6px;margin-top:8px;align-items:center}.vrow .in,.optrow .in{min-height:44px;padding:8px 10px}.vrow .x{border:0;background:none;font-size:24px;color:var(--muted)}
 .pgrid3{display:grid;grid-template-columns:1.2fr 1fr .9fr;gap:8px;margin-top:8px}
 .pgrid3 label{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:4px;min-width:0}
 .pgrid3 .in{min-height:44px;padding:0 8px;width:100%}
@@ -343,7 +350,7 @@ async function dbDel(s, id) {
 }
 
 /* ---------- Sincronizzazione online (Supabase): stessi dati su telefono e computer ---------- */
-var APP_VER = 'v36';
+var APP_VER = 'v40';
 var SB = { url: 'https://hscotybcbtvvignhyyzb.supabase.co', key: 'sb_publishable_hud_y8DUmgxrHt5ohdP-ug_1zokOiNr' };
 var SYNC_STORES = ['clienti', 'rilievi', 'foto', 'listini', 'pdf', 'preventivi', 'impostazioni'];
 var syncSt = { busy: false, ts: 0, err: '', again: false }, syncTm = null;
@@ -589,6 +596,7 @@ async function loadAll() {
   } catch (e) { S.prodotti = []; }
   try { var bk = await dbGet('impostazioni', 'backup'); S.backupTs = bk && bk.ts ? bk.ts : 0; } catch (e) { S.backupTs = 0; }
   try { var cd = await dbGet('impostazioni', 'codici'); S.codici = cd && Array.isArray(cd.lista) ? cd.lista : []; } catch (e) { S.codici = []; }
+  try { await catLoad(); } catch (e) { S.catalogo = []; }
   try { var c2 = await dbGet('impostazioni', 'codici2'); S.cod = { cartelle: (c2 && c2.cartelle) || [], codici: (c2 && c2.codici) || [] }; } catch (e) { S.cod = { cartelle: [], codici: [] }; }
   try { var ly = await dbGet('impostazioni', 'layout'); S.layouts = ly && Array.isArray(ly.lista) ? ly.lista : []; } catch (e) { S.layouts = []; }
   S.preventivi = await dbAll('preventivi');
@@ -801,6 +809,9 @@ function render() {
   else if (S.view === 'codici') viewCodici();
   else if (S.view === 'codcart') viewCodCart();
   else if (S.view === 'layout') viewLayout();
+  else if (S.view === 'catalogo') viewCatalogo();
+  else if (S.view === 'catcat') viewCatCat();
+  else if (S.view === 'catprod') viewCatProd();
   else if (S.view === 'preventivi') viewPreventivi();
   else if (S.view === 'preventivo') viewPreventivo();
   else if (S.view === 'cliente') viewCliente();
@@ -2045,7 +2056,7 @@ async function backup() {
   try {
     var foto = await dbAll('foto'), out = { v: 1, clienti: S.clienti.concat(S.cartelle), rilievi: S.rilievi, foto: [] };
     for (var i = 0; i < foto.length; i++) out.foto.push({ id: foto[i].id, w: foto[i].w, h: foto[i].h, data: await blobToDataUrl(foto[i].blob) });
-    out.home = S.home; out.prodotti = S.prodotti; out.codici = S.codici; out.codici2 = S.cod; out.layout = S.layouts; out.listini = S.listini; out.preventivi = S.preventivi; out.pdf = [];
+    out.home = S.home; out.prodotti = S.prodotti; out.codici = S.codici; out.codici2 = S.cod; out.layout = S.layouts; out.listini = S.listini; out.preventivi = S.preventivi; out.catalogo = S.catalogo; out.pdf = [];
     var pdfs = await dbAll('pdf');
     for (i = 0; i < pdfs.length; i++) out.pdf.push({ id: pdfs[i].id, data: await blobToDataUrl(new Blob([pdfs[i].buf], { type: 'application/pdf' })) });
     var d = new Date().toISOString().slice(0, 10);
@@ -2064,6 +2075,7 @@ async function restore(file) {
     if (j.home && typeof j.home === 'object') await dbPut('impostazioni', { id: 'home', titolo: j.home.titolo, dati: j.home.dati, logo: j.home.logo || '', footer: j.home.footer });
     if (Array.isArray(j.prodotti)) await dbPut('impostazioni', { id: 'prodotti', lista: j.prodotti });
     if (Array.isArray(j.codici)) await dbPut('impostazioni', { id: 'codici', lista: j.codici });
+    if (Array.isArray(j.catalogo)) { for (var ci = 0; ci < j.catalogo.length; ci++) await dbPut('impostazioni', { id: 'cat-' + j.catalogo[ci].id, prod: j.catalogo[ci] }); }
     if (j.codici2 && typeof j.codici2 === 'object') await dbPut('impostazioni', { id: 'codici2', cartelle: j.codici2.cartelle || [], codici: j.codici2.codici || [] });
     if (Array.isArray(j.layout)) await dbPut('impostazioni', { id: 'layout', lista: j.layout });
     for (i = 0; i < (j.listini || []).length; i++) await dbPut('listini', j.listini[i]);
@@ -2162,6 +2174,7 @@ function viewHome() {
     tile('clienti', 'Clienti', plural(S.clienti.length, 'cliente', 'clienti') + ' · ' + plural(S.rilievi.length, 'rilievo', 'rilievi')) +
     tile('listini', 'Listini', plural(S.listini.length, 'listino', 'listini') + ' dei fornitori') +
     tile('codici', 'Codici', plural(S.cod.codici.length, 'codice', 'codici') + ' · ' + plural(S.cod.cartelle.length, 'cartella', 'cartelle')) +
+    tile('catalogo', 'Catalogo', plural((S.catalogo || []).length, 'modello', 'modelli') + ' con prezzi') +
     tile('preventivi', 'Preventivi', plural(S.preventivi.length, 'preventivo', 'preventivi')) +
     '</div>' +
     '<div class="note-box" style="margin-bottom:12px"><strong>Telefono e computer.</strong><div id="sync-st" style="margin-top:8px">' + syncHtml() + '</div></div>' +
@@ -2813,7 +2826,7 @@ function prevRigaHtml(r, i) {
     '<label class="lb" style="margin-top:12px">Prezzo di listino € <span class="muted" style="font-weight:400">(puoi sommare: 1200+350+90)</span></label>' +
     '<input class="in" data-pf="prezzoExpr" inputmode="text" value="' + esc(r.prezzoExpr !== undefined ? r.prezzoExpr : (r.prezzo ? String(r.prezzo).replace('.', ',') : '')) + '" placeholder="0,00"><div class="muted" style="font-size:13px;margin-top:4px" data-ls="' + i + '">' + (String(r.prezzoExpr || '').indexOf('+') >= 0 ? 'Somma: ' + fmtEur(c.lis) : '') + '</div>' +
     '<label class="lb" style="margin-top:12px">Dove (facoltativo, es. cucina)</label><input class="in" data-pf="dove" value="' + esc(r.dove || '') + '" placeholder="Es. Piano Terra, cucina" autocomplete="off">' + (function () { var h = '', k = i + 1, ps = S.prev.righe; while (k < ps.length && ps[k].sub && ps[k].pid === r.id) { h += prevSubHtml(ps[k], k); k++; } return h; })() +
-    '<div class="btnrow"><button class="btn" data-act="paddsub" data-ri="' + i + '">+ Aggiungi misura</button><button class="btn" data-act="paddhead" data-ri="' + i + '">+ Intestazione</button></div>' +
+    '<div class="btnrow"><button class="btn" data-act="paddsub" data-ri="' + i + '">+ Aggiungi misura</button><button class="btn" data-act="paddhead" data-ri="' + i + '">+ Intestazione</button>' + (r.cfg ? '<button class="btn" data-act="catedit" data-ri="' + i + '">Modifica scheda prodotto</button>' : '') + '</div>' +
     '<label class="chkl" style="margin-top:12px"><input type="checkbox" data-pf="linea"' + (r.noLine ? '' : ' checked') + '> Riga di divisione sopra questa tabella</label>' +
     '<div class="pint"><div class="pinth">Solo per te: non compare nel preventivo</div>' +
     '<div class="pgrid3"><label>Sconto rivenditore %<input class="in" data-pf="sconto" inputmode="decimal" value="' + (r.sconto ? numV(r.sconto) : '') + '" placeholder="0"></label>' +
@@ -2866,6 +2879,7 @@ function viewPreventivo() {
     '<button class="btn block" style="margin-top:10px" data-act="pviewlist">Visualizza listino</button>' +
     '<label class="lb" for="p-liva">I prezzi di listino che scrivo sono</label><select id="p-liva" class="in" data-pf="listinoIva"><option value="senza"' + (p.listinoIva === 'con' ? '' : ' selected') + '>Senza IVA</option><option value="con"' + (p.listinoIva === 'con' ? ' selected' : '') + '>Con IVA 22% (l\'app la toglie)</option></select>' +
     '<h2 class="sec" style="margin-top:24px">Righe</h2><div id="prows">' + prevTabelleHtml() + '</div>' +
+    catPickerHtml() +
     '<div class="btnrow"><button class="btn" data-act="plink">Aggiungi un rilievo</button><button class="btn" data-act="paddtab">Nuova soluzione (alternativa)</button></div>' +
     '<div id="ptotbox">' + prevTotHtml() + '</div>' +
     '<label class="lb" for="p-note">Note per il cliente (condizioni, validità, tempi)</label><textarea id="p-note" class="in" data-pf="note">' + esc(p.note) + '</textarea>' +
@@ -3126,8 +3140,10 @@ async function esportaPreventivo() {
 
 /* ---------- Eventi dell'app ---------- */
 app.addEventListener('click', async function (e) {
-  var t = e.target.closest('[data-act],[data-cid],[data-rid],[data-qid],[data-nid],[data-mode],[data-iid],[data-isz],[data-pc],[data-pw],[data-nav],[data-lid],[data-pid],[data-fk],[data-fopen],[data-freset],[data-fid],[data-ccid],[data-codid],[data-cpick],[data-lyid]');
+  var t = e.target.closest('[data-act],[data-cid],[data-rid],[data-qid],[data-nid],[data-mode],[data-iid],[data-isz],[data-pc],[data-pw],[data-nav],[data-lid],[data-pid],[data-fk],[data-fopen],[data-freset],[data-fid],[data-ccid],[data-cpid],[data-kcat],[data-codid],[data-cpick],[data-lyid]');
   if (!t) return;
+  if (t.dataset.kcat) { S.catCat = t.dataset.kcat; S.view = 'catcat'; render(); window.scrollTo(0, 0); return; }
+  if (t.dataset.cpid) { S.catVer = 0; S.catProd = t.dataset.cpid; S.view = 'catprod'; render(); return; }
   if (t.dataset.ccid) { S.codCart = t.dataset.ccid; S.view = 'codcart'; render(); return; }
   if (t.dataset.codid) { var cc = S.cod.codici.filter(function (x) { return x.id === t.dataset.codid; })[0]; if (cc) sheetCodice(cc); return; }
   if (t.dataset.lyid) { var ly = S.layouts.filter(function (x) { return x.id === t.dataset.lyid; })[0]; if (ly) sheetLayoutItem(ly); return; }
@@ -3173,6 +3189,8 @@ app.addEventListener('click', async function (e) {
       else if (S.view === 'rilievo') { await flush(); S.view = 'cliente'; S.ril = null; }
       else if (S.view === 'cliente') { S.view = 'clienti'; S.cartella = (S.cliente && S.cliente.cartellaId && cartellaDi(S.cliente.cartellaId)) ? S.cliente.cartellaId : null; S.cliente = null; }
       else if (S.view === 'clienti' && S.cartella) { S.cartella = null; }
+      else if (S.view === 'catprod') { var bp = catById(S.catProd); S.catCat = bp ? catK(bp) : null; S.view = S.catCat ? 'catcat' : 'catalogo'; S.catProd = null; }
+      else if (S.view === 'catcat') { S.view = 'catalogo'; S.catCat = null; }
       else if (S.view === 'codcart') { S.view = 'codici'; S.codCart = null; }
       else if (S.view === 'layout') { S.view = 'preventivi'; }
       else if (S.view === 'listino') { if (S.listBack) { S.view = 'preventivo'; S.prev = S.listBack; S.listBack = null; } else S.view = 'listini'; S.listino = null; }
@@ -3199,6 +3217,9 @@ app.addEventListener('click', async function (e) {
     case 'prevfromril':
       await flush(); var rl = S.ril; S.ril = null; S.parent = null; S.prevFrom = 'cliente';
       await creaPreventivo(S.cliente.id, [rl.id], S.listini[0] && S.listini[0].id); break;
+    case 'catgo': { var cs = $('#cat-sel'), cp0 = cs && catById(cs.value); if (!cp0) { toast('Scegli prima tipologia e modello dal menù.'); break; } sheetConfig(cp0); break; }
+    case 'catedit': { var re = S.prev.righe[Number(t.dataset.ri)], pe = re && re.cfg && catById(re.cfg.pid); if (!pe) { toast('Questo prodotto non è più nel catalogo.'); break; } sheetConfig(pe, re); break; }
+    case 'catadd': case 'catnewcat': case 'catdelcat': case 'catver': case 'catveradd': case 'catverdup': case 'catverdel': case 'catdim': case 'catimport': case 'catdelesempi': case 'catcol': case 'catrow': case 'catdelcol': case 'catdelrow': case 'cataddopt': case 'catdelopt': case 'cataddvoce': case 'catdelvoce': case 'catpct': case 'catdup': case 'catdel': await catAction(t); break;
     case 'paddrow': S.prev.righe.push(nuovaRiga(Number(t.dataset.tab) || 1)); savePrev(); viewPreventivo(); break;
     case 'paddmag': { var mg = nuovaRiga(Number(t.dataset.tab) || 1); mg.mag = true; mg.magLabel = 'Aumento'; S.prev.righe.push(mg); savePrev(); viewPreventivo(); break; }
     case 'paddtab': {
@@ -3325,8 +3346,11 @@ app.addEventListener('click', async function (e) {
       break;
   }
 });
+document.addEventListener('toggle', function (e) { var d = e.target; if (d && d.dataset && d.dataset.dk) { S.catOpen = S.catOpen || {}; S.catOpen[d.dataset.dk] = d.open; } }, true);
 app.addEventListener('input', function (e) {
   var el = e.target;
+  if (el.id === 'cat-cat') { catFillModels(); return; }
+  if (el.dataset.ce !== undefined) { catInput(el); return; }
   if (el.dataset.cq !== undefined) {
     var box = el.parentNode.querySelector('[data-cres]'), res = cercaCodici(el.value).slice(0, 6);
     if (box) box.innerHTML = el.value.trim() ? (res.length ? res.map(function (x) { return '<button type="button" data-cpick="' + x.c.id + '">' + esc(x.c.nome) + '<small>' + esc(x.cart ? x.cart.nome : '') + ' · ' + (x.c.prezzo ? esc(x.c.prezzo) + ' €' : 'prezzo non inserito') + '</small></button>'; }).join('') : '<div class="muted" style="padding:8px 2px;font-size:14px">Nessun codice trovato.</div>') : '';
@@ -3355,6 +3379,409 @@ app.addEventListener('change', function (e) {
 });
 window.addEventListener('pagehide', function () { if (S.ril) flush(); if (S.prev) savePrev(); });
 window.addEventListener('resize', function () { if (S.view === 'rilievo') fit(); });
+
+
+/* ---------- Catalogo prodotti: scheda da compilare e prezzo calcolato dal listino ---------- */
+var CAT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>';
+TILE_ICON.catalogo = CAT_ICON;
+var ICON_GO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
+function catV(nome, prezzo, calcolo) { return { id: uid(), nome: nome, prezzo: prezzo || 0, calcolo: calcolo || 'fisso' }; }
+function catOpt(nome, tipo, voci) { return { id: uid(), nome: nome, tipo: tipo, voci: voci }; }
+function catGrid(larg, alt, f) { return { larg: larg, alt: alt, valori: alt.map(function (a) { return larg.map(function (l) { return Math.round(f(l, a)); }); }) }; }
+function catalogoDemo() {
+  var out = [];
+  function bracci(id, nome, k) {
+    var g = catGrid([200, 250, 300, 350, 400, 450, 500, 600], [150, 200, 250, 300], function (l, sp) { return (450 + l * 1.9 + sp * 2.6 + l * sp / 10000 * 30) * k; });
+    out.push({ id: id, demo: true, nome: nome, categoria: 'Tende da sole a bracci', descr: 'TENDA DA SOLE A BRACCI ' + nome.toUpperCase(), etichetta: 'Sporgenza', tipoPrezzo: 'tabella', larg: g.larg, alt: g.alt, valori: g.valori, prezzoMq: 0, minMq: 0,
+      opzioni: [catOpt('Tessuto', 'scelta', [catV('Fascia A', 0), catV('Fascia B', 120), catV('Fascia C', 240)]),
+        catOpt('Movimento', 'scelta', [catV('Manuale a manovella', 0), catV('Motore elettrico', 190)]),
+        catOpt('Volant', 'scelta', [catV('Senza volant', 0), catV('Con volant', 14, 'ml')]),
+        catOpt('Colore struttura', 'scelta', [catV('Bianco', 0), catV('Antracite', 0), catV('Corten', 4, 'perc')]),
+        catOpt('Sensori', 'multi', [catV('Sensore vento', 130), catV('Sensore sole', 110), catV('Sensore pioggia', 95)])] });
+  }
+  bracci('demo-idra', 'Idra', 1); bracci('demo-pegaso', 'Pegaso', 1.15); bracci('demo-ermes', 'Ermes', 1.3);
+  function caduta(id, nome, mq) {
+    out.push({ id: id, demo: true, nome: nome, categoria: 'Tende a caduta', descr: 'TENDA A CADUTA ' + nome.toUpperCase(), etichetta: 'Altezza', tipoPrezzo: 'mq', larg: [], alt: [], valori: [], prezzoMq: mq, minMq: 2,
+      opzioni: [catOpt('Tessuto', 'scelta', [catV('Acrilico', 0), catV('Premium', 10, 'mq')]),
+        catOpt('Movimento', 'scelta', [catV('Manuale', 0), catV('Motore', 150)]),
+        catOpt('Guide', 'scelta', [catV('Standard', 0), catV('Con cavo in acciaio', 60)])] });
+  }
+  caduta('demo-nausica', 'Nausica', 85); caduta('demo-ermione', 'Ermione', 98);
+  var rullo = catGrid([60, 80, 100, 120, 140, 160, 180, 200, 250, 300], [100, 150, 200, 250, 300], function (l, a) { return 30 + l * a / 10000 * 58 + l * 0.12; });
+  out.push({ id: 'demo-rullo', demo: true, nome: 'Tenda a rullo', categoria: 'Tende da interni', descr: 'TENDA A RULLO', etichetta: 'Altezza', tipoPrezzo: 'tabella', larg: rullo.larg, alt: rullo.alt, valori: rullo.valori, prezzoMq: 0, minMq: 0,
+    opzioni: [catOpt('Tessuto', 'scelta', [catV('Filtrante', 0), catV('Oscurante', 18, 'mq'), catV('Screen', 12, 'mq')]),
+      catOpt('Movimento', 'scelta', [catV('Manuale a catenella', 0), catV('Motore 220V', 135), catV('Motore a batteria', 165)]),
+      catOpt('Cassonetto', 'scelta', [catV('Nessuno', 0), catV('Cassonetto in alluminio', 9, 'ml')]),
+      catOpt('Accessori', 'multi', [catV('Telecomando', 38), catV('Sensore sole', 95), catV('Interruttore a muro', 22)])] });
+  return out;
+}
+async function catLoad() {
+  var recs = []; try { recs = await dbAll('impostazioni'); } catch (e) {}
+  S.catalogo = recs.filter(function (r) { return String(r.id).indexOf('cat-') === 0 && r.prod; }).map(function (r) { return catNorm(r.prod); });
+  if (!lsGet('rm_cat_seed2', '')) {
+    /* la prima versione di prova aveva 3 prodotti senza modelli: li tolgo e metto gli esempi nuovi */
+    var oldIds = ['demo-rullo', 'demo-bracci', 'demo-caduta'];
+    for (var j = 0; j < S.catalogo.length; j++) { var q = S.catalogo[j]; if (q.demo && (oldIds.indexOf(q.id) >= 0) && q.id !== 'demo-rullo') { try { await dbDel('impostazioni', 'cat-' + q.id); } catch (e) {} } }
+    S.catalogo = S.catalogo.filter(function (q) { return !(q.demo && (q.id === 'demo-bracci' || q.id === 'demo-caduta')); });
+    if (!lsGet('rm_cat_seed', '') || S.catalogo.length < 2) {
+      /* esempi con data vecchia: se online c'è già il tuo catalogo, vince quello */
+      var d = catalogoDemo();
+      for (var i = 0; i < d.length; i++) { if (catById(d[i].id)) continue; try { await rawPut('impostazioni', { id: 'cat-' + d[i].id, prod: catNorm(d[i]), _ts: 1 }); } catch (e) {} S.catalogo.push(catNorm(d[i])); }
+    }
+    lsSet('rm_cat_seed', '1'); lsSet('rm_cat_seed2', '1');
+  }
+}
+function catK(p) { return p.categoria || 'Altro'; }
+function catSorted() { return (S.catalogo || []).slice().sort(function (a, b) { return (a.categoria || '').localeCompare(b.categoria || '') || (a.nome || '').localeCompare(b.nome || ''); }); }
+function catById(id) { return (S.catalogo || []).filter(function (p) { return p.id === id; })[0]; }
+var catSaveT = null;
+function catQueueSave(p) { clearTimeout(catSaveT); catSaveT = setTimeout(function () { catSave(p); }, 500); }
+async function catSave(p) { clearTimeout(catSaveT); try { await dbPut('impostazioni', { id: 'cat-' + p.id, prod: p }); } catch (e) { toast('Impossibile salvare su questo dispositivo.'); } }
+
+/* calcolo del prezzo di listino per una scheda compilata */
+function catNorm(p) {
+  if (!p.versioni || !p.versioni.length) {
+    p.versioni = [{ id: 'v1', nome: 'Standard', tipoPrezzo: p.tipoPrezzo || 'tabella', larg: p.larg || [], alt: p.alt || [], valori: p.valori || [], prezzoMq: p.prezzoMq || 0, minMq: p.minMq || 0 }];
+    delete p.tipoPrezzo; delete p.larg; delete p.alt; delete p.valori; delete p.prezzoMq; delete p.minMq;
+  }
+  p.versioni.forEach(function (v, i) { if (!v.id) v.id = 'v' + (i + 1); if (!v.nome) v.nome = 'Versione ' + (i + 1); });
+  p.opzioni = p.opzioni || [];
+  return p;
+}
+function catVer(p, id) { var vs = p.versioni || []; return vs.filter(function (v) { return v.id === id; })[0] || vs[0]; }
+function catPick(arr, x) { var bi = -1; (arr || []).forEach(function (v, i) { v = Number(v); if (v >= x && (bi < 0 || v < Number(arr[bi]))) bi = i; }); return bi; }
+/* cerca un prezzo in una tabella (larghezza × altezza o solo larghezza): si arrotonda alla misura successiva */
+function catLookup(G, L, A, lab) {
+  var ci = catPick(G.larg, L), one = !(G.alt && G.alt.length), ri = one ? 0 : catPick(G.alt, A);
+  if (ci < 0) return { err: 'Larghezza oltre il listino (massimo ' + Math.max.apply(null, (G.larg || [0]).map(Number)) + ' cm).' };
+  if (ri < 0) return { err: (lab || 'Altezza') + ' oltre il listino (massimo ' + Math.max.apply(null, (G.alt || [0]).map(Number)) + ' cm).' };
+  var val = G.valori && G.valori[ri] ? G.valori[ri][ci] : null;
+  if (val === null || val === '' || val === undefined || !isFinite(Number(val))) return { err: 'Questa misura non è disponibile a listino (' + G.larg[ci] + (one ? '' : ' × ' + G.alt[ri]) + ' cm).' };
+  return { v: Number(val), ci: ci, ri: ri, txt: G.larg[ci] + (one ? '' : ' × ' + G.alt[ri]) + ' cm' };
+}
+function catVoceImporto(v, base, L, A) {
+  var n = Number(v.prezzo) || 0;
+  if (v.calcolo === 'ml') return n * L / 100;
+  if (v.calcolo === 'mlh') return n * A / 100;
+  if (v.calcolo === 'mq') return n * (L * A / 10000);
+  if (v.calcolo === 'perc') return base * n / 100;
+  return n;
+}
+function catScelte(o, sel) {
+  var voci = o.voci || [];
+  return o.tipo === 'multi' ? voci.filter(function (v) { return (sel || []).indexOf(v.id) >= 0; }) : [voci.filter(function (v) { return v.id === sel; })[0] || voci[0]].filter(Boolean);
+}
+function catCalc(p, c) {
+  var L = parseNum(c.larg), A = parseNum(c.alt), out = { base: 0, nota: '', err: '', righe: [], tot: 0 }, lab = (p.etichetta || 'Altezza').toLowerCase(), ver = catVer(p, c.ver);
+  if (!(L > 0) || !(A > 0)) { out.err = 'Scrivi larghezza e ' + lab + ' in cm.'; return out; }
+  if (!ver) { out.err = 'Il modello non ha prezzi.'; return out; }
+  if (ver.tipoPrezzo === 'mq') {
+    var m2 = Math.max(L * A / 10000, Number(ver.minMq) || 0);
+    out.base = m2 * (Number(ver.prezzoMq) || 0); out.nota = m2.toFixed(2).replace('.', ',') + ' m² × ' + fmtEur(ver.prezzoMq) + (m2 > L * A / 10000 + 1e-9 ? ' (minimo fatturabile)' : '');
+  } else {
+    var r = catLookup(ver, L, A, p.etichetta); if (r.err) { out.err = r.err; return out; }
+    out.base = r.v; out.nota = ((p.versioni || []).length > 1 ? ver.nome + ' · ' : 'Listino: ') + r.txt;
+  }
+  var tot = out.base;
+  (p.opzioni || []).forEach(function (o) {
+    catScelte(o, (c.sel || {})[o.id]).forEach(function (v) {
+      var imp;
+      if (v.calcolo === 'tabella') { var rr = catLookup(v.tab || { larg: [], alt: [], valori: [] }, L, A, p.etichetta); if (rr.err) { if (!out.err) out.err = o.nome + ' (' + v.nome + '): ' + rr.err.replace(/^Larghezza oltre il listino/, 'larghezza oltre il listino').replace(/^Questa misura non è disponibile a listino/, 'misura non disponibile a listino'); return; } imp = rr.v; }
+      else imp = catVoceImporto(v, out.base, L, A);
+      imp = Math.round(imp * 100) / 100; if (imp) out.righe.push({ nome: o.nome + ': ' + v.nome, imp: imp }); tot += imp;
+    });
+  });
+  out.tot = Math.round(tot * 100) / 100; return out;
+}
+function catDesc(p, c) {
+  var lines = [(p.descr || p.nome || '').trim()], ver = catVer(p, c.ver);
+  if ((p.versioni || []).length > 1 && ver) lines.push((p.etichettaVer || 'Versione') + ': ' + ver.nome);
+  (p.opzioni || []).forEach(function (o) {
+    var scelte = catScelte(o, (c.sel || {})[o.id]).filter(function (v) { return !/^(nessun[oa]?|senza|no)\b/i.test(v.nome); });
+    if (scelte.length) lines.push(o.nome + ': ' + scelte.map(function (v) { return v.nome; }).join(', '));
+  });
+  if ((c.note || '').trim()) lines.push(c.note.trim());
+  return lines.join('\n');
+}
+
+/* scheda del prodotto, da compilare per aggiungere (o modificare) una riga del preventivo */
+function sheetConfig(p, riga) {
+  var cfg = riga && riga.cfg ? JSON.parse(JSON.stringify(riga.cfg)) : { larg: '', alt: '', qta: '1', sel: {}, note: '' };
+  cfg.sel = cfg.sel || {}; catNorm(p); if (!cfg.ver || !catVer(p, cfg.ver) || catVer(p, cfg.ver).id !== cfg.ver) cfg.ver = p.versioni[0].id;
+  (p.opzioni || []).forEach(function (o) { if (cfg.sel[o.id] === undefined) cfg.sel[o.id] = o.tipo === 'multi' ? [] : ((o.voci[0] || {}).id); });
+  var lab = p.etichetta || 'Altezza';
+  var html = '<h2 class="sh">' + esc(p.nome) + '</h2>' + (p.demo ? '<p class="muted" style="margin:-6px 0 8px;font-size:13px">Prodotto di esempio: i prezzi sono inventati.</p>' : '') +
+    '<div class="pgrid3" style="grid-template-columns:.7fr 1fr 1fr"><label class="lb" style="margin:8px 0 0">Nr.<input class="in" data-k="qta" inputmode="numeric" value="' + esc(cfg.qta) + '"></label>' +
+    '<label class="lb" style="margin:8px 0 0">Larghezza cm<input class="in" data-k="larg" inputmode="decimal" value="' + esc(cfg.larg) + '"></label>' +
+    '<label class="lb" style="margin:8px 0 0">' + esc(lab) + ' cm<input class="in" data-k="alt" inputmode="decimal" value="' + esc(cfg.alt) + '"></label></div>' +
+    (p.info ? '<p class="muted" style="font-size:12.5px;margin:8px 0 0;white-space:pre-line">' + esc(p.info) + '</p>' : '') +
+    (p.versioni.length > 1 ? '<label class="lb">' + esc(p.etichettaVer || 'Versione') + '<select class="in" data-ver="1">' + p.versioni.map(function (v) { return '<option value="' + v.id + '"' + (cfg.ver === v.id ? ' selected' : '') + '>' + esc(v.nome) + '</option>'; }).join('') + '</select></label>' : '');
+  (p.opzioni || []).forEach(function (o) {
+    if (o.tipo === 'multi') {
+      html += '<label class="lb">' + esc(o.nome) + '</label><div class="group"' + (o.voci.length > 8 ? ' style="max-height:280px;overflow:auto"' : '') + '>' + o.voci.map(function (v) {
+        return '<label class="qrow chk"><span><input type="checkbox" data-m="' + o.id + '" value="' + v.id + '"' + ((cfg.sel[o.id] || []).indexOf(v.id) >= 0 ? ' checked' : '') + '> ' + esc(v.nome) + '</span></label>';
+      }).join('') + '</div>';
+    } else {
+      html += '<label class="lb">' + esc(o.nome) + '<select class="in" data-s="' + o.id + '">' + o.voci.map(function (v) { return '<option value="' + v.id + '"' + (cfg.sel[o.id] === v.id ? ' selected' : '') + '>' + esc(v.nome) + '</option>'; }).join('') + '</select></label>';
+    }
+  });
+  html += '<label class="lb">Note (facoltative, finiscono nella descrizione)<textarea class="in" data-k="note" rows="2">' + esc(cfg.note) + '</textarea></label>' +
+    '<div class="cfgbox" id="cfg-box"></div>' +
+    '<div class="btnrow"><button class="btn pri" id="cfg-ok">' + (riga ? 'Salva modifiche' : 'Aggiungi al preventivo') + '</button><button class="btn" data-x="close">Annulla</button></div>';
+  openSheet(html, function (sh) {
+    function upd() {
+      var c = catCalc(p, cfg), b = $('#cfg-box', sh);
+      b.innerHTML = c.err ? '<p class="cfgerr">' + esc(c.err) + '</p>' : '<div class="cfgl"><span>' + esc(c.nota || 'Prezzo base') + '</span><span>' + fmtEur(c.base) + '</span></div>' +
+        c.righe.map(function (r) { return '<div class="cfgl"><span>' + esc(r.nome) + '</span><span>' + (r.imp > 0 ? '+ ' : '− ') + fmtEur(Math.abs(r.imp)) + '</span></div>'; }).join('') +
+        '<div class="cfgl tot"><span>Prezzo di listino' + (parseNum(cfg.qta) > 1 ? ' (cad.)' : '') + '</span><span>' + fmtEur(c.tot) + '</span></div>';
+      $('#cfg-ok', sh).disabled = !!c.err;
+    }
+    sh.addEventListener('input', function (e) {
+      var el = e.target;
+      if (el.dataset.k) cfg[el.dataset.k] = el.value;
+      else if (el.dataset.ver) cfg.ver = el.value;
+      else if (el.dataset.s) cfg.sel[el.dataset.s] = el.value;
+      else if (el.dataset.m) { var a = cfg.sel[el.dataset.m] || []; var i = a.indexOf(el.value); if (el.checked && i < 0) a.push(el.value); if (!el.checked && i >= 0) a.splice(i, 1); cfg.sel[el.dataset.m] = a; }
+      upd();
+    });
+    $('#cfg-ok', sh).addEventListener('click', function () {
+      var c = catCalc(p, cfg); if (c.err) return;
+      var r = riga || nuovaRiga(tabList(S.prev).slice(-1)[0] || 1), q = parseNum(cfg.qta);
+      r.cfg = { pid: p.id, ver: cfg.ver, larg: cfg.larg, alt: cfg.alt, qta: cfg.qta, sel: cfg.sel, note: cfg.note };
+      r.desc = catDesc(p, cfg); r.qta = q > 1 ? String(q) : ''; r.larg = String(parseNum(cfg.larg) || '');
+      var isSp = (p.etichetta || '').toLowerCase().indexOf('sporg') === 0; r.alt = isSp ? '' : String(parseNum(cfg.alt) || ''); r.sporg = isSp ? String(parseNum(cfg.alt) || '') : '';
+      r.prezzoExpr = c.tot.toFixed(2).replace('.', ',');
+      if (!riga) S.prev.righe.push(r);
+      closeSheet(true); savePrev(); viewPreventivo(); toast(riga ? 'Scheda aggiornata.' : 'Prodotto aggiunto al preventivo.');
+    });
+    upd();
+  });
+}
+function catPickerHtml() {
+  var cats = {}; catSorted().forEach(function (p) { (cats[catK(p)] = cats[catK(p)] || []).push(p); });
+  var ks = Object.keys(cats).sort();
+  if (!ks.length) return '<p class="muted" style="font-size:14px">Il catalogo è vuoto: aggiungi i prodotti dalla schermata Catalogo.</p>';
+  return '<div class="catrow" style="grid-template-columns:1fr"><select id="cat-cat" class="in"><option value="">Tipologia di tenda…</option>' + ks.map(function (k) { return '<option value="' + esc(k) + '">' + esc(k) + '</option>'; }).join('') + '</select></div>' +
+    '<div class="catrow" style="margin-top:8px"><select id="cat-sel" class="in" disabled><option value="">Poi scegli il modello…</option></select><button class="catgo" data-act="catgo" aria-label="Apri la scheda del prodotto">' + ICON_GO + '</button></div>';
+}
+function catFillModels() {
+  var c = $('#cat-cat'), m = $('#cat-sel'); if (!c || !m) return;
+  var list = catSorted().filter(function (p) { return catK(p) === c.value; });
+  m.innerHTML = '<option value="">' + (c.value ? 'Scegli il modello…' : 'Poi scegli il modello…') + '</option>' + list.map(function (p) { return '<option value="' + p.id + '">' + esc(p.nome) + (p.marca ? ' · ' + esc(p.marca) : '') + '</option>'; }).join('');
+  m.disabled = !c.value; if (list.length === 1) m.value = list[0].id;
+}
+
+/* schermata Catalogo: tipologie (categorie) */
+function catGroups() { var g = {}; catSorted().forEach(function (p) { (g[catK(p)] = g[catK(p)] || []).push(p); }); return g; }
+function viewCatalogo() {
+  var g = catGroups(), ks = Object.keys(g).sort(), n = (S.catalogo || []).length, demo = (S.catalogo || []).some(function (p) { return p.demo; });
+  app.innerHTML = header('Catalogo', true, '') +
+    '<main class="wrap"><h1 class="h">Catalogo</h1><p class="sub">' + plural(ks.length, 'tipologia', 'tipologie') + ' · ' + plural(n, 'modello', 'modelli') + '</p>' +
+    (demo ? '<div class="note-box" style="margin-bottom:14px"><strong>Modelli di esempio.</strong> I prezzi sono inventati, servono solo a provare. Modificali o eliminali quando inserisci i listini veri.</div>' : '') +
+    (ks.length ? ks.map(function (k) {
+      return '<div class="group" style="margin-bottom:8px"><button class="row" data-kcat="' + esc(k) + '"><div style="min-width:0"><div class="nm">' + esc(k) + '</div></div><span class="count">' + plural(g[k].length, 'modello', 'modelli') + ICON_NEXT + '</span></button></div>';
+    }).join('') : '<div class="empty"><h2>Catalogo vuoto</h2><p>Crea la prima tipologia con il tasto in basso.</p></div>') +
+    '<div id="cat-listini"></div>' + (demo ? '<div class="acts"><button class="btn block" data-act="catdelesempi">Elimina i modelli di esempio</button></div>' : '') +
+    '</main><div class="bar"><div class="wrap"><button class="btn pri" data-act="catnewcat">Nuova tipologia</button></div></div>';
+  catListiniUi();
+}
+/* dentro una tipologia: i modelli */
+function viewCatCat() {
+  var k = S.catCat, list = catSorted().filter(function (p) { return catK(p) === k; });
+  if (!list.length) { S.view = 'catalogo'; S.catCat = null; viewCatalogo(); return; }
+  app.innerHTML = header(k, true, '') +
+    '<main class="wrap"><h1 class="h">' + esc(k) + '</h1><p class="sub">' + plural(list.length, 'modello', 'modelli') + '</p>' +
+    list.map(function (p) {
+      return '<div class="group" style="margin-bottom:8px"><button class="row" data-cpid="' + p.id + '"><div style="min-width:0"><div class="nm">' + esc(p.nome) + (p.demo ? ' <span class="tag">esempio</span>' : '') + (p.marca ? ' <span class="tag">' + esc(p.marca) + '</span>' : '') + '</div></div><span class="count">' + (p.versioni && p.versioni.length > 1 ? p.versioni.length + ' versioni' : (catVer(p) && catVer(p).tipoPrezzo === 'mq' ? 'al m²' : 'tabella')) + ICON_NEXT + '</span></button></div>';
+    }).join('') +
+    '<label class="lb" style="margin-top:22px">Nome della tipologia<input class="in" data-ce="catname" value="' + esc(k) + '"></label>' +
+    '<div class="acts"><button class="btn danger block" data-act="catdelcat">Elimina la tipologia e tutti i suoi modelli</button></div></main>' +
+    '<div class="bar"><div class="wrap"><button class="btn pri" data-act="catadd">Nuovo modello</button></div></div>';
+}
+
+/* modifica di un modello: versioni di prezzo, tabelle e maggiorazioni */
+function catNewProd(cat, nome) {
+  return { id: uid(), nome: nome || 'Nuovo modello', categoria: cat || 'Tende da sole', descr: (nome || 'NUOVO MODELLO').toUpperCase(), etichetta: 'Altezza', info: '',
+    versioni: [{ id: 'v1', nome: 'Standard', tipoPrezzo: 'tabella', larg: [100, 150, 200], alt: [100, 150, 200], valori: [[null, null, null], [null, null, null], [null, null, null]], prezzoMq: 0, minMq: 0 }],
+    opzioni: [catOpt('Movimento', 'scelta', [catV('Manuale', 0), catV('Motore', 0)])] };
+}
+function catGridOf(p, g) {
+  var a = String(g || 'v:0').split(':');
+  if (a[0] === 'o') { var v = p.opzioni[+a[1]].voci[+a[2]]; v.tab = v.tab || { larg: [100, 200, 300], alt: [100, 200], valori: [[null, null, null], [null, null, null]] }; return v.tab; }
+  return p.versioni[+a[1]] || p.versioni[0];
+}
+function catCellaHtml(v, r, c, g) { return '<input class="cc" data-ce="cella" data-g="' + g + '" data-r="' + r + '" data-c="' + c + '" inputmode="decimal" value="' + (v === null || v === undefined ? '' : esc(String(v).replace('.', ','))) + '">'; }
+function catGridHtml(g, G, lab) {
+  var one = !(G.alt && G.alt.length), rows = one ? 1 : G.alt.length, h = '<div class="tbscroll"><table class="cattb"><tr><th></th>' +
+    G.larg.map(function (l, c) { return '<th><input class="cc h" data-ce="larg" data-g="' + g + '" data-c="' + c + '" inputmode="decimal" value="' + esc(l) + '"></th>'; }).join('') + '</tr>';
+  for (var r = 0; r < rows; r++) {
+    h += '<tr><th>' + (one ? '€' : '<input class="cc h" data-ce="alt" data-g="' + g + '" data-r="' + r + '" inputmode="decimal" value="' + esc(G.alt[r]) + '">') + '</th>' + G.larg.map(function (l, c) { return '<td>' + catCellaHtml((G.valori[r] || [])[c], r, c, g) + '</td>'; }).join('') + '</tr>';
+  }
+  h += '</table></div><div class="btnrow"><button class="btn" data-act="catcol" data-g="' + g + '">+ Larghezza</button>' + (one ? '' : '<button class="btn" data-act="catrow" data-g="' + g + '">+ ' + esc(lab) + '</button>') + '</div>' +
+    '<div class="btnrow" style="margin-top:0"><button class="btn" data-act="catdelcol" data-g="' + g + '">− Ultima larghezza</button>' + (one ? '' : '<button class="btn" data-act="catdelrow" data-g="' + g + '">− Ultima riga</button>') + '</div>' +
+    '<div class="btnrow" style="margin-top:0"><button class="btn" data-act="catdim" data-g="' + g + '">' + (one ? 'Aggiungi anche la seconda misura' : 'Solo larghezza (una riga)') + '</button></div>';
+  return h;
+}
+function viewCatProd() {
+  var p = catById(S.catProd); if (!p) { S.view = 'catalogo'; viewCatalogo(); return; }
+  catNorm(p); S.catVer = Math.min(Math.max(S.catVer || 0, 0), p.versioni.length - 1);
+  var lab = p.etichetta || 'Altezza', ver = p.versioni[S.catVer], vg = 'v:' + S.catVer;
+  var h = header(p.nome || 'Prodotto', true, '') + '<main class="wrap"><h1 class="h">' + esc(p.nome || 'Prodotto') + '</h1>' + (p.demo ? '<p class="sub">Modello di esempio: prezzi inventati.</p>' : '<p class="sub">' + esc(p.marca || '') + (p.src ? (p.marca ? ' · ' : '') + esc(p.src) : '') + '</p>') +
+    '<label class="lb">Nome del modello<input class="in" data-ce="nome" value="' + esc(p.nome) + '"></label>' +
+    '<label class="lb">Tipologia di tenda<input class="in" list="catlist" data-ce="categoria" value="' + esc(p.categoria) + '"></label><datalist id="catlist">' + Object.keys(catGroups()).map(function (k) { return '<option value="' + esc(k) + '">'; }).join('') + '</datalist>' +
+    '<label class="lb">Descrizione sul preventivo (prima riga)<textarea class="in" data-ce="descr" rows="2">' + esc(p.descr) + '</textarea></label>' +
+    '<label class="lb">Seconda misura<select class="in" data-ce="etichetta"><option' + (lab === 'Altezza' ? ' selected' : '') + '>Altezza</option><option' + (lab === 'Sporgenza' ? ' selected' : '') + '>Sporgenza</option></select></label>' +
+    '<label class="lb">Note del listino (misure minime e massime, condizioni)<textarea class="in" data-ce="info" rows="2">' + esc(p.info || '') + '</textarea></label>';
+  h += '<h2 class="sec" style="margin-top:22px">Prezzi base</h2>';
+  if (p.versioni.length > 1 || true) {
+    h += '<div class="chips">' + p.versioni.map(function (v, i) { return '<button class="chip' + (i === S.catVer ? ' on' : '') + '" data-act="catver" data-i="' + i + '">' + esc(v.nome) + '</button>'; }).join('') + '<button class="chip" data-act="catveradd">+ Versione</button></div>';
+  }
+  h += '<label class="lb">Nome della versione (es. Manuale, Motorizzata)<input class="in" data-ce="vername" value="' + esc(ver.nome) + '"></label>' +
+    '<label class="lb">Come si calcola il prezzo<select class="in" data-ce="tipoPrezzo"><option value="tabella"' + (ver.tipoPrezzo !== 'mq' ? ' selected' : '') + '>Tabella del listino (larghezza × ' + esc(lab.toLowerCase()) + ')</option><option value="mq"' + (ver.tipoPrezzo === 'mq' ? ' selected' : '') + '>Al metro quadro</option></select></label>';
+  if (ver.tipoPrezzo === 'mq') {
+    h += '<div class="pgrid3" style="grid-template-columns:1fr 1fr"><label class="lb" style="margin:8px 0 0">Prezzo al m² (€)<input class="in" data-ce="prezzoMq" inputmode="decimal" value="' + esc(String(ver.prezzoMq || '').replace('.', ',')) + '"></label>' +
+      '<label class="lb" style="margin:8px 0 0">Minimo m²<input class="in" data-ce="minMq" inputmode="decimal" value="' + esc(String(ver.minMq || '').replace('.', ',')) + '"></label></div>';
+  } else {
+    h += '<p class="muted" style="font-size:13px;margin:10px 0 8px">In alto le larghezze, a sinistra ' + esc(lab.toLowerCase()) + ' (cm). Per una misura intermedia vale il prezzo della misura successiva. Cella vuota = non disponibile.</p>' + catGridHtml(vg, ver, lab);
+  }
+  h += '<div class="btnrow"><button class="btn" data-act="catverdup">Duplica questa versione</button>' + (p.versioni.length > 1 ? '<button class="btn danger" data-act="catverdel">Elimina versione</button>' : '') + '</div>';
+  h += '<h2 class="sec" style="margin-top:26px">Maggiorazioni e opzioni</h2><p class="muted" style="font-size:13px;margin:0 0 8px">Tutto ciò che non è nella tabella dei prezzi base. Ogni voce si somma al prezzo: importo fisso, al metro lineare, al m², in percentuale oppure da tabella per misura.</p>';
+  (p.opzioni || []).forEach(function (o, oi) {
+    h += '<details class="optcard" data-dk="o' + oi + '"' + (S.catOpen && S.catOpen['o' + oi] ? ' open' : '') + '><summary class="optsum">' + esc(o.nome || 'Opzione') + ' <span class="muted">· ' + plural(o.voci.length, 'voce', 'voci') + '</span></summary><div class="optrow" style="margin-top:8px"><input class="in" data-ce="onome" data-o="' + oi + '" value="' + esc(o.nome) + '" placeholder="Nome (es. Tessuto)"><select class="in" data-ce="otipo" data-o="' + oi + '"><option value="scelta"' + (o.tipo !== 'multi' ? ' selected' : '') + '>Una scelta</option><option value="multi"' + (o.tipo === 'multi' ? ' selected' : '') + '>Più scelte</option></select></div>';
+    o.voci.forEach(function (v, vi) {
+      var tb = v.calcolo === 'tabella';
+      h += '<div class="vrow"><input class="in" data-ce="vnome" data-o="' + oi + '" data-v="' + vi + '" value="' + esc(v.nome) + '" placeholder="Voce"><input class="in" data-ce="vprezzo" data-o="' + oi + '" data-v="' + vi + '" inputmode="decimal"' + (tb ? ' disabled placeholder="tabella"' : '') + ' value="' + (tb ? '' : esc(String(v.prezzo || 0).replace('.', ','))) + '"><select class="in" data-ce="vcalc" data-o="' + oi + '" data-v="' + vi + '">' +
+        [['fisso', '€'], ['ml', '€/ml larg.'], ['mlh', '€/ml alt.'], ['mq', '€/m²'], ['perc', '%'], ['tabella', 'tabella']].map(function (x) { return '<option value="' + x[0] + '"' + (v.calcolo === x[0] ? ' selected' : '') + '>' + x[1] + '</option>'; }).join('') + '</select><button class="x" data-act="catdelvoce" data-o="' + oi + '" data-v="' + vi + '" aria-label="Togli voce">×</button></div>';
+      if (v.nota) h += '<div class="muted" style="font-size:12px;margin:-2px 0 6px">' + esc(v.nota) + '</div>';
+      if (tb) { var tbo = v.tab || catGridOf(p, 'o:' + oi + ':' + vi); h += '<details style="margin:0 0 10px" data-dk="g' + oi + '_' + vi + '"' + (S.catOpen && S.catOpen['g' + oi + '_' + vi] ? ' open' : '') + '><summary class="muted" style="font-size:13px;cursor:pointer">Tabella prezzi (' + tbo.larg.length + ' larghezze × ' + ((tbo.alt || []).length || 1) + ' righe)</summary>' + catGridHtml('o:' + oi + ':' + vi, tbo, lab) + '</details>'; }
+    });
+    h += '<div class="btnrow" style="margin-top:6px"><button class="btn" data-act="cataddvoce" data-o="' + oi + '">+ Voce</button><button class="btn" data-act="catdelopt" data-o="' + oi + '">Togli opzione</button></div></details>';
+  });
+  h += '<div class="btnrow"><button class="btn" data-act="cataddopt">+ Nuova opzione</button></div>' +
+    '<h2 class="sec" style="margin-top:26px">Aumento listino</h2><div class="pgrid3" style="grid-template-columns:1fr 1.4fr"><input class="in" id="cat-pct" inputmode="decimal" placeholder="Es. 5"><button class="btn" data-act="catpct">Aumenta i prezzi di questo %</button></div>' +
+    '<div class="acts"><button class="btn block" data-act="catdup">Duplica modello</button><button class="btn danger block" data-act="catdel">Elimina modello</button></div></main>';
+  app.innerHTML = h;
+}
+var catRenT = null;
+function catInput(el) {
+  if (el.dataset.ce === 'catname') {
+    var nv = el.value.trim() || 'Altro', old = S.catCat;
+    (S.catalogo || []).forEach(function (q) { if (catK(q) === old) q.categoria = el.value.trim(); });
+    S.catCat = nv; clearTimeout(catRenT); catRenT = setTimeout(function () { (S.catalogo || []).filter(function (q) { return catK(q) === S.catCat; }).forEach(catSave); }, 500); return;
+  }
+  var p = catById(S.catProd); if (!p) return;
+  var k = el.dataset.ce, r = Number(el.dataset.r), c = Number(el.dataset.c), o = Number(el.dataset.o), v = Number(el.dataset.v), ver = p.versioni[S.catVer || 0] || p.versioni[0];
+  var num = function (x) { var t = String(x).trim(); return t === '' ? null : parseNum(t); };
+  function again() { var sy = window.scrollY; catSave(p); viewCatProd(); window.scrollTo(0, sy); }
+  if (k === 'nome' || k === 'categoria' || k === 'descr' || k === 'info') p[k] = el.value;
+  if (k === 'categoria') S.catCat = catK(p);
+  else if (k === 'etichetta') { p[k] = el.value; again(); return; }
+  else if (k === 'tipoPrezzo') { ver.tipoPrezzo = el.value; again(); return; }
+  else if (k === 'vername') ver.nome = el.value;
+  else if (k === 'prezzoMq' || k === 'minMq') ver[k] = parseNum(el.value);
+  else if (k === 'larg') catGridOf(p, el.dataset.g).larg[c] = parseNum(el.value);
+  else if (k === 'alt') catGridOf(p, el.dataset.g).alt[r] = parseNum(el.value);
+  else if (k === 'cella') { var G = catGridOf(p, el.dataset.g); G.valori[r] = G.valori[r] || []; G.valori[r][c] = num(el.value); }
+  else if (k === 'onome') p.opzioni[o].nome = el.value;
+  else if (k === 'otipo') p.opzioni[o].tipo = el.value;
+  else if (k === 'vnome') p.opzioni[o].voci[v].nome = el.value;
+  else if (k === 'vprezzo') p.opzioni[o].voci[v].prezzo = parseNum(el.value);
+  else if (k === 'vcalc') { var vv = p.opzioni[o].voci[v]; vv.calcolo = el.value; if (el.value === 'tabella') catGridOf(p, 'o:' + o + ':' + v); again(); return; }
+  catQueueSave(p);
+}
+var catArm = '';
+async function catAction(t) {
+  var act = t.dataset.act, p = catById(S.catProd), o = Number(t.dataset.o), v = Number(t.dataset.v);
+  if (act === 'catadd') {
+    var np = catNewProd(S.catCat || 'Tende da sole');
+    S.catalogo.push(np); await catSave(np); S.catProd = np.id; S.catVer = 0; S.view = 'catprod'; render(); return;
+  }
+  if (act === 'catnewcat') {
+    var nc = 'Nuova tipologia', cc = 1, gg = catGroups(); while (gg[nc]) nc = 'Nuova tipologia ' + (++cc);
+    var np2 = catNewProd(nc);
+    S.catalogo.push(np2); await catSave(np2); S.catCat = nc; S.view = 'catcat'; render(); window.scrollTo(0, 0); toast('Dai un nome alla tipologia e aggiungi i modelli.'); return;
+  }
+  if (act === 'catdelcat') {
+    if (catArm !== 'delcat') { catArm = 'delcat'; t.textContent = 'Tocca di nuovo per eliminare tutto'; return; }
+    catArm = ''; var kill = S.catalogo.filter(function (x) { return catK(x) === S.catCat; });
+    S.catalogo = S.catalogo.filter(function (x) { return catK(x) !== S.catCat; });
+    for (var ki = 0; ki < kill.length; ki++) { try { await dbDel('impostazioni', 'cat-' + kill[ki].id); } catch (e) {} }
+    S.view = 'catalogo'; S.catCat = null; render(); toast('Tipologia eliminata.'); return;
+  }
+  if (act === 'catdelesempi') {
+    if (catArm !== 'esempi') { catArm = 'esempi'; t.textContent = 'Tocca di nuovo per eliminare gli esempi'; return; }
+    catArm = ''; var ex = S.catalogo.filter(function (x) { return x.demo; });
+    S.catalogo = S.catalogo.filter(function (x) { return !x.demo; });
+    for (var ei = 0; ei < ex.length; ei++) { try { await dbDel('impostazioni', 'cat-' + ex[ei].id); } catch (e) {} }
+    render(); toast('Esempi eliminati.'); return;
+  }
+  if (act === 'catimport') { await catImport(t); return; }
+  if (!p) return;
+  catNorm(p);
+  var ver = p.versioni[S.catVer || 0] || p.versioni[0];
+  if (act === 'catver') { S.catVer = Number(t.dataset.i); var sy0 = window.scrollY; viewCatProd(); window.scrollTo(0, sy0); return; }
+  var G = (t.dataset.g ? catGridOf(p, t.dataset.g) : null), rows, cols;
+  if (G) { rows = (G.alt || []).length; cols = G.larg.length; }
+  if (act === 'catcol') { G.larg.push((Number(G.larg[cols - 1]) || 0) + 50); if (!G.valori.length) G.valori.push([]); G.valori.forEach(function (r) { while (r.length < cols) r.push(null); r.push(null); }); }
+  else if (act === 'catrow') { G.alt.push((Number(G.alt[rows - 1]) || 0) + 50); G.valori.push(G.larg.map(function () { return null; })); }
+  else if (act === 'catdelcol') { if (cols > 1) { G.larg.pop(); G.valori.forEach(function (r) { r.pop(); }); } }
+  else if (act === 'catdelrow') { if (rows > 1) { G.alt.pop(); G.valori.pop(); } }
+  else if (act === 'catdim') { if (rows) { G.alt = []; G.valori = [G.valori[0] || G.larg.map(function () { return null; })]; } else { G.alt = [100]; G.valori = [(G.valori[0] || G.larg.map(function () { return null; })).slice()]; } }
+  else if (act === 'catveradd') { var nv = { id: 'v' + uid().slice(0, 5), nome: 'Nuova versione', tipoPrezzo: 'tabella', larg: ver.larg.slice(), alt: ver.alt.slice(), valori: ver.valori.map(function (r) { return r.map(function () { return null; }); }), prezzoMq: 0, minMq: 0 }; p.versioni.push(nv); S.catVer = p.versioni.length - 1; }
+  else if (act === 'catverdup') { var cv = JSON.parse(JSON.stringify(ver)); cv.id = 'v' + uid().slice(0, 5); cv.nome = ver.nome + ' (copia)'; p.versioni.push(cv); S.catVer = p.versioni.length - 1; }
+  else if (act === 'catverdel') {
+    if (catArm !== 'verdel') { catArm = 'verdel'; t.textContent = 'Tocca di nuovo per eliminare'; return; }
+    catArm = ''; if (p.versioni.length > 1) { p.versioni.splice(S.catVer || 0, 1); S.catVer = 0; }
+  }
+  else if (act === 'cataddopt') p.opzioni.push(catOpt('Nuova opzione', 'scelta', [catV('Voce 1', 0)]));
+  else if (act === 'catdelopt') p.opzioni.splice(o, 1);
+  else if (act === 'cataddvoce') p.opzioni[o].voci.push(catV('Nuova voce', 0));
+  else if (act === 'catdelvoce') { if (p.opzioni[o].voci.length > 1) p.opzioni[o].voci.splice(v, 1); else toast('Serve almeno una voce.'); }
+  else if (act === 'catpct') {
+    var pc = parseNum(($('#cat-pct') || {}).value); if (!pc) { toast('Scrivi la percentuale, per esempio 5.'); return; }
+    if (catArm !== 'pct') { catArm = 'pct'; t.textContent = 'Tocca ancora per aumentare del ' + String(pc).replace('.', ',') + '%'; return; }
+    catArm = ''; var f = 1 + pc / 100, rd = function (x) { return Math.round(x * f * 100) / 100; };
+    var rdv = function (vals) { return vals.map(function (r) { return r.map(function (x) { return x === null || x === '' ? x : rd(Number(x)); }); }); };
+    p.versioni.forEach(function (vv) { vv.valori = rdv(vv.valori); vv.prezzoMq = rd(Number(vv.prezzoMq) || 0); });
+    p.opzioni.forEach(function (op) { op.voci.forEach(function (vv) { if (vv.calcolo === 'tabella' && vv.tab) vv.tab.valori = rdv(vv.tab.valori); else if (vv.calcolo !== 'perc') vv.prezzo = rd(Number(vv.prezzo) || 0); }); });
+    toast('Prezzi aggiornati del ' + String(pc).replace('.', ',') + '%.');
+  }
+  else if (act === 'catdup') { var cp = JSON.parse(JSON.stringify(p)); cp.id = uid(); cp.demo = false; cp.nome = p.nome + ' (copia)'; S.catalogo.push(cp); await catSave(cp); S.catProd = cp.id; S.catVer = 0; toast('Modello duplicato.'); viewCatProd(); window.scrollTo(0, 0); return; }
+  else if (act === 'catdel') {
+    if (catArm !== 'del') { catArm = 'del'; t.textContent = 'Tocca di nuovo per eliminare'; return; }
+    catArm = ''; S.catalogo = S.catalogo.filter(function (x) { return x.id !== p.id; }); try { await dbDel('impostazioni', 'cat-' + p.id); } catch (e) {}
+    S.catProd = null; S.view = S.catalogo.some(function (x) { return catK(x) === S.catCat; }) ? 'catcat' : 'catalogo'; if (S.view === 'catalogo') S.catCat = null; render(); toast('Modello eliminato.'); return;
+  }
+  catArm = ''; await catSave(p); var sy = window.scrollY; viewCatProd(); window.scrollTo(0, sy);
+}
+
+/* listini dei fornitori: file pronti, da caricare nel catalogo */
+async function catImport(btn) {
+  var file = btn.dataset.file, nome = btn.dataset.nome || file;
+  var j; try { var r = await fetch('listini/' + file + '?t=' + Date.now(), { cache: 'no-store' }); if (!r.ok) throw new Error('http'); j = await r.json(); } catch (e) { toast('Non riesco a leggere il file del listino.'); return; }
+  var arr = Array.isArray(j) ? j : (j.prodotti || []), nuovi = 0, esist = 0;
+  var gia = arr.filter(function (p) { return catById(p.id); }).length;
+  if (gia && catArm !== 'imp-' + file) { catArm = 'imp-' + file; btn.textContent = gia + ' già presenti: tocca ancora per sovrascriverli con il listino'; return; }
+  catArm = ''; btn.disabled = true; btn.textContent = 'Carico…';
+  for (var i = 0; i < arr.length; i++) {
+    var p = catNorm(arr[i]), ex = catById(p.id);
+    if (ex) { S.catalogo = S.catalogo.filter(function (x) { return x.id !== p.id; }); esist++; } else nuovi++;
+    S.catalogo.push(p); await catSave(p);
+  }
+  var ex2 = S.catalogo.filter(function (x) { return x.demo; });
+  if (ex2.length) { S.catalogo = S.catalogo.filter(function (x) { return !x.demo; }); for (var di = 0; di < ex2.length; di++) { try { await dbDel('impostazioni', 'cat-' + ex2[di].id); } catch (e) {} } }
+  render(); toast(nome + ': ' + nuovi + ' nuovi' + (esist ? ', ' + esist + ' aggiornati' : '') + '.');
+}
+var catListiniCache = null;
+async function catListiniUi() {
+  var box = $('#cat-listini'); if (!box) return;
+  if (!catListiniCache) { try { var r = await fetch('listini/index.json?t=' + Date.now(), { cache: 'no-store' }); if (r.ok) catListiniCache = await r.json(); } catch (e) {} }
+  box = $('#cat-listini'); if (!box || !catListiniCache || !catListiniCache.length) return;
+  box.innerHTML = '<h2 class="sec" style="margin:22px 0 8px">Listini dei fornitori</h2>' + catListiniCache.map(function (l) {
+    var tot = (l.ids || []).length, got = (l.ids || []).filter(function (id) { return catById(id); }).length;
+    return '<div class="group" style="margin-bottom:8px;padding:12px"><div class="nm">' + esc(l.nome) + '</div><div class="muted" style="font-size:13px;margin:2px 0 8px">' + esc(l.descr || '') + ' · ' + (got ? got + ' di ' + tot + ' modelli già nel catalogo' : plural(tot, 'modello', 'modelli')) + '</div><button class="btn" data-act="catimport" data-file="' + esc(l.file) + '" data-nome="' + esc(l.nome) + '">' + (got ? 'Aggiorna dal listino' : 'Carica nel catalogo') + '</button></div>';
+  }).join('');
+}
 
 /* ---------- Avvio ---------- */
 (async function init() {
