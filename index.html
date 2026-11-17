@@ -143,7 +143,7 @@ main.wrap{position:relative;z-index:1}
 .lrow .tx{min-width:0;overflow-wrap:anywhere}
 .lrow.pick{cursor:pointer}
 .sres{max-height:46vh;overflow:auto;margin-top:12px}
-.prow{background:color-mix(in srgb,var(--surface) 84%,transparent);border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:12px}
+.prow{background:var(--surface);border:0;box-shadow:var(--shadow);border-radius:16px;padding:14px;margin-bottom:12px}
 .prow .plink{color:var(--muted);font-size:12.5px;margin-bottom:8px}
 .mov{display:inline-flex;gap:6px}.mov button{min-width:44px;min-height:40px;border:1px solid var(--line);background:var(--surface);border-radius:8px;font-size:18px}
 .prow .movrow{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
@@ -166,7 +166,7 @@ main.wrap{position:relative;z-index:1}
 .pgrid3{display:grid;grid-template-columns:1.2fr 1fr .9fr;gap:8px;margin-top:8px}
 .pgrid3 label{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:4px;min-width:0}
 .pgrid3 .in{min-height:44px;padding:0 8px;width:100%}
-.pint{border:1.5px dashed var(--line);border-radius:8px;padding:10px;margin:12px 0}
+.pint{border:1.5px dashed var(--line);border-radius:14px;padding:10px;margin:12px 0}
 .pinth{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
 .pfin{display:flex;justify-content:space-between;align-items:baseline;margin-top:10px;font-size:15px}.pfin b{font-size:17px}
 .ptab{margin-bottom:22px}.ptabh{display:flex;align-items:center;gap:10px;margin-bottom:10px}.ptabh span{font-weight:700;white-space:nowrap}
@@ -244,6 +244,47 @@ main.wrap{position:relative;z-index:1}
 
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(92px + env(safe-area-inset-bottom,0px));max-width:calc(100% - 32px);background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:8px;z-index:60;font-size:15px;text-align:center;box-shadow:var(--shadow)}
 @media (prefers-reduced-motion:no-preference){.sheet{animation:up .2s ease-out}@keyframes up{from{transform:translateY(24px);opacity:.4}to{transform:none;opacity:1}}}
+
+/* ===== Stile v42: come il layout del preventivo (azzurro, card arrotondate, freccia verde) ===== */
+:root{--bg:#F3F5F8;--surface:#FFFFFF;--ink:#1B2430;--muted:#5B6675;--line:#E3E8EE;--track:#E9EEF4;--accent:#38B6FF;--pri:#38B6FF;--pri-ink:#06283D;--go:#2F9E56;--bar:rgba(255,255,255,.94);--shadow:0 1px 2px rgba(20,30,50,.08),0 4px 14px rgba(20,30,50,.05)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#0E1319;--surface:#171E26;--ink:#EEF2F6;--muted:#93A0AE;--line:#27313C;--track:#1F2832;--pri:#38B6FF;--pri-ink:#06283D;--bar:rgba(23,30,38,.94)}}
+:root[data-theme="dark"]{--bg:#0E1319;--surface:#171E26;--ink:#EEF2F6;--muted:#93A0AE;--line:#27313C;--track:#1F2832;--pri:#38B6FF;--pri-ink:#06283D;--bar:rgba(23,30,38,.94)}
+body::after{display:none!important}
+body::before{background:var(--bar)}
+.top{background:var(--bar);border-bottom:1px solid var(--line)}
+.hbtn{border-radius:12px;color:#0B6AA2}
+:root[data-theme="dark"] .hbtn{color:#7CCBFF}
+.hbtn.round{background:var(--track);color:var(--ink)}
+.btn{border-radius:12px;min-height:48px}
+.btn.pri{background:var(--pri);color:var(--pri-ink);border-color:var(--pri)}
+.in{border-radius:12px}
+.in:focus-visible{outline:2px solid var(--pri);border-color:transparent}
+:focus-visible{outline-color:var(--pri)}
+.group,.dl,.fpanel,.tile,.slot,.banner,.tbscroll{border-radius:16px}
+.group,.dl,.tile{background:var(--surface);box-shadow:var(--shadow);border-color:transparent}
+.fpanel{background:var(--surface)}
+.card img{border-radius:14px}
+.pe-sm,.pgbar button,.pen button,.pr .pn{border-radius:12px}
+.seg{border-radius:12px}.seg button{border-radius:10px}
+.tile .ti{border-radius:12px;background:#E1F3FE;color:#0B6AA2}
+:root[data-theme="dark"] .tile .ti{background:#16384D;color:#7CCBFF}
+.chip{border-radius:999px}.chip.on{background:var(--pri);color:var(--pri-ink);border-color:var(--pri)}
+.fbtn.act{border-color:var(--pri)}
+.pr .pn.on,.pen button.on{border-color:var(--pri)}
+.pr .pe.ok{background:var(--pri);color:var(--pri-ink);border-color:var(--pri)}
+.sec{text-transform:uppercase;letter-spacing:.05em;font-size:12px}
+.catgo{border-radius:12px;background:var(--go)}
+.bdg{background:var(--pri);color:var(--pri-ink)}
+.toast{border-radius:14px}
+/* preventivo: impostazioni raccolte in un riquadro */
+details.pset{background:var(--surface);border-radius:16px;box-shadow:var(--shadow);margin:14px 0;padding:0 16px}
+details.pset>summary{min-height:52px;display:flex;align-items:center;font-weight:600;cursor:pointer;list-style:none}
+details.pset>summary::-webkit-details-marker{display:none}
+details.pset>summary::after{content:"›";margin-left:auto;font-size:22px;color:var(--muted);transition:transform .15s}
+details.pset[open]>summary::after{transform:rotate(90deg)}
+details.pset[open]{padding-bottom:16px}
+.pickcard{background:var(--surface);border-radius:16px;box-shadow:var(--shadow);padding:12px;margin-top:6px}
+.pickcard .catrow{margin-top:0}
 </style>
 
 <div id="app"></div>
@@ -350,7 +391,7 @@ async function dbDel(s, id) {
 }
 
 /* ---------- Sincronizzazione online (Supabase): stessi dati su telefono e computer ---------- */
-var APP_VER = 'v40';
+var APP_VER = 'v42';
 var SB = { url: 'https://hscotybcbtvvignhyyzb.supabase.co', key: 'sb_publishable_hud_y8DUmgxrHt5ohdP-ug_1zokOiNr' };
 var SYNC_STORES = ['clienti', 'rilievi', 'foto', 'listini', 'pdf', 'preventivi', 'impostazioni'];
 var syncSt = { busy: false, ts: 0, err: '', again: false }, syncTm = null;
@@ -2711,7 +2752,6 @@ function prevNumero() {
 }
 async function creaPreventivo(clienteId, rilievoIds, listinoId) {
   var rows = rilievoIds.map(function (id) { return rilievoDi(id); }).filter(Boolean).map(rigaDaRilievo);
-  if (!rows.length) rows.push(nuovaRiga(1));
   var p = { id: uid(), numero: prevNumero(), clienteId: clienteId, listinoId: listinoId || '', righe: rows, iva: 22, listinoIva: 'senza', tabTit: {}, tabN: [1], note: '', creatoIl: Date.now(), aggiornatoIl: Date.now() };
   await dbPut('preventivi', p); S.preventivi.push(p);
   S.prev = p; S.cliente = clienteDi(clienteId) || S.cliente; S.view = 'preventivo'; render();
@@ -2852,10 +2892,11 @@ function prevTabelleHtml() {
   return tl.map(function (n) {
     var rows = '';
     p.righe.forEach(function (r, i) { if (!r.sub && (Number(r.tab) || 1) === n) rows += r.mag ? prevMagHtml(r, i) : prevRigaHtml(r, i); });
-    return '<div class="ptab"><div class="ptabh">' + (tl.length > 1 ? '<span>Soluzione ' + n + '</span>' : '') +
-      '<input class="in" data-pt="' + n + '" placeholder="Titolo (es. SOLUZIONE ' + n + ' o Tenda da sole A)" value="' + esc((p.tabTit && p.tabTit[n]) || '') + '"></div>' + rows +
+    var hasRows = rows !== '';
+    return '<div class="ptab">' + ((tl.length > 1 || hasRows) ? '<div class="ptabh">' + (tl.length > 1 ? '<span>Soluzione ' + n + '</span>' : '') +
+      '<input class="in" data-pt="' + n + '" placeholder="Titolo (es. SOLUZIONE ' + n + ' o Tenda da sole A)" value="' + esc((p.tabTit && p.tabTit[n]) || '') + '"></div>' : '') + rows +
       '<div class="btnrow"><button class="btn" data-act="paddrow" data-tab="' + n + '">Aggiungi descrizione</button><button class="btn" data-act="paddmag" data-tab="' + n + '">Aggiungi maggiorazione</button></div>' +
-      '<label class="chkl"><input type="checkbox" data-ptt="' + n + '"' + (p.tabTotShow && p.tabTotShow[n] ? ' checked' : '') + '> Scrivi "COSTO TOTALE" in fondo a questa soluzione</label></div>';
+      '<label class="chkl"><input type="checkbox" data-ptt="' + n + '"' + (p.tabTotShow && p.tabTotShow[n] ? ' checked' : '') + '> Mostra "Totale" nel PDF</label></div>';
   }).join('');
 }
 function condHtml() {
@@ -2874,19 +2915,21 @@ function viewPreventivo() {
   app.innerHTML = header('Preventivo ' + p.numero, true, '<button class="hbtn" data-act="pprev">Anteprima</button><button class="hbtn" data-act="pexport">Crea PDF</button>') +
     '<main class="wrap">' +
     '<dl class="dl"><dt>Cliente</dt><dd>' + esc(c ? c.nome : '—') + '</dd>' + (c && c.indirizzo ? '<dt>Indirizzo</dt><dd>' + esc(c.indirizzo) + '</dd>' : '') + '<dt>Data</dt><dd>' + fmtDate(p.creatoIl) + '</dd></dl>' +
+    '<div class="pickcard">' + catPickerHtml() + '</div>' +
+    '<div id="prows" style="margin-top:14px">' + prevTabelleHtml() + '</div>' +
+    '<div class="btnrow"><button class="btn" data-act="plink">Aggiungi un rilievo</button><button class="btn" data-act="paddtab">Nuova soluzione (alternativa)</button></div>' +
+    '<div id="ptotbox">' + prevTotHtml() + '</div>' +
+    '<details class="pset"><summary>Impostazioni del preventivo</summary>' +
     '<label class="lb" for="p-list">Listino</label><select id="p-list" class="in" data-pf="listinoId"><option value="">Nessuno</option>' +
     S.listini.map(function (l) { return '<option value="' + l.id + '"' + (l.id === p.listinoId ? ' selected' : '') + '>' + esc(l.nome) + '</option>'; }).join('') + '</select>' +
     '<button class="btn block" style="margin-top:10px" data-act="pviewlist">Visualizza listino</button>' +
     '<label class="lb" for="p-liva">I prezzi di listino che scrivo sono</label><select id="p-liva" class="in" data-pf="listinoIva"><option value="senza"' + (p.listinoIva === 'con' ? '' : ' selected') + '>Senza IVA</option><option value="con"' + (p.listinoIva === 'con' ? ' selected' : '') + '>Con IVA 22% (l\'app la toglie)</option></select>' +
-    '<h2 class="sec" style="margin-top:24px">Righe</h2><div id="prows">' + prevTabelleHtml() + '</div>' +
-    catPickerHtml() +
-    '<div class="btnrow"><button class="btn" data-act="plink">Aggiungi un rilievo</button><button class="btn" data-act="paddtab">Nuova soluzione (alternativa)</button></div>' +
-    '<div id="ptotbox">' + prevTotHtml() + '</div>' +
     '<label class="lb" for="p-note">Note per il cliente (condizioni, validità, tempi)</label><textarea id="p-note" class="in" data-pf="note">' + esc(p.note) + '</textarea>' +
     '<h2 class="sec" style="margin-top:24px">Sotto la tabella</h2>' + condHtml() +
     '<label class="lb" for="p-ft">Testo sotto (ecobonus, condizioni di vendita, saluti): vale solo per questo preventivo</label><textarea id="p-ft" class="in" data-pz2="1" rows="9">' + esc(footerTesto(p)) + '</textarea>' +
     '<button class="btn block" style="margin-top:8px" data-act="footerall">Usa questo testo per tutti i nuovi preventivi</button>' +
     '<label class="lb" for="p-az">I tuoi dati in alto sul PDF (nome azienda, indirizzo, partita IVA)</label><textarea id="p-az" class="in" data-pz="1" placeholder="Es. Nome azienda&#10;Via…&#10;P.IVA…">' + esc(az) + '</textarea>' +
+    '</details>' +
     '<div class="acts"><button class="btn danger block" data-act="pdel">Elimina preventivo</button></div>' +
     '</main>';
 }
@@ -3068,7 +3111,7 @@ async function creaPdfPreventivo(p) {
     y -= 8;
     if (p.tabTotShow && p.tabTotShow[n]) {
       if (y < BOT + 20) { newPg(); head(); }
-      T('COSTO TOTALE', PX - 8, y, 8, F, ink, true); T(eurLayout(tot), PX, y, SZ, B); y -= 14;
+      T('Totale', PX - 8, y, SZ, F, ink, true); T(eurLayout(tot), PX, y, SZ, B); y -= 14;
     }
     if (ti < tl.length - 1) { y -= 8; page.drawLine({ start: { x: ML, y: y }, end: { x: R, y: y }, thickness: 0.7, color: ink }); y -= 22; }
   });
@@ -3250,7 +3293,6 @@ app.addEventListener('click', async function (e) {
       var dr = S.prev.righe[Number(t.dataset.ri)];
       if (dr && !dr.sub) { S.prev.righe = S.prev.righe.filter(function (x) { return x.pid !== dr.id; }); }
       S.prev.righe.splice(S.prev.righe.indexOf(dr), 1);
-      if (!S.prev.righe.length) S.prev.righe.push(nuovaRiga(1));
       savePrev(); viewPreventivo(); break;
     case 'pdel':
       if (t.dataset.armed) {
